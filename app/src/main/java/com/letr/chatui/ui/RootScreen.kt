@@ -990,6 +990,7 @@ private fun ComposerBar(
     val interactionSource = remember { MutableInteractionSource() }
     val focusManager = LocalFocusManager.current
     val isImeVisible = androidx.compose.foundation.layout.WindowInsets.isImeVisible
+    val isComposerFocused by interactionSource.collectIsFocusedAsState()
     var composerFieldValue by rememberSaveable(
         chatUiState.selectedConversationId?.value,
         stateSaver = TextFieldValue.Saver,
@@ -1019,10 +1020,18 @@ private fun ComposerBar(
         }
     }
 
-    val isComposerExpanded = isImeVisible
+    val isComposerExpanded = isComposerFocused || isImeVisible
+    val composerWidthFraction by animateFloatAsState(
+        targetValue = if (isComposerExpanded) 0.96f else 0.82f,
+        animationSpec = spring(
+            dampingRatio = 0.88f,
+            stiffness = 420f,
+        ),
+        label = "composerWidthFraction",
+    )
     val composerControlHeight = 40.dp
     val composerVerticalPadding by animateDpAsState(
-        targetValue = 6.dp,
+        targetValue = spacing.small,
         animationSpec = spring(
             dampingRatio = 0.92f,
             stiffness = 760f,
@@ -1030,15 +1039,23 @@ private fun ComposerBar(
         label = "composerVerticalPadding",
     )
     val composerHorizontalPadding by animateDpAsState(
-        targetValue = if (isComposerExpanded) spacing.large else spacing.small,
+        targetValue = if (isComposerExpanded) spacing.large else spacing.medium,
         animationSpec = spring(
             dampingRatio = 0.82f,
             stiffness = 420f,
         ),
         label = "composerHorizontalPadding",
     )
+    val composerSideGap by animateDpAsState(
+        targetValue = if (isComposerExpanded) spacing.medium else spacing.xSmall,
+        animationSpec = spring(
+            dampingRatio = 0.84f,
+            stiffness = 460f,
+        ),
+        label = "composerSideGap",
+    )
     val composerCardScale by animateFloatAsState(
-        targetValue = if (isComposerExpanded) 1f else 0.998f,
+        targetValue = if (isComposerExpanded) 1f else 0.996f,
         animationSpec = spring(
             dampingRatio = 0.9f,
             stiffness = 700f,
@@ -1046,84 +1063,93 @@ private fun ComposerBar(
         label = "composerCardScale",
     )
 
-    Row(
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .imePadding()
-            .graphicsLayer {
-                scaleX = composerCardScale
-                scaleY = composerCardScale
-            }
-            .clip(corners.large)
-            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.88f))
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.06f),
-                shape = corners.large,
-            )
-            .padding(horizontal = composerHorizontalPadding, vertical = composerVerticalPadding),
-        horizontalArrangement = Arrangement.spacedBy(spacing.small),
-        verticalAlignment = Alignment.Bottom,
+            .imePadding(),
+        contentAlignment = Alignment.Center,
     ) {
-        IconButton(
-            onClick = onStartNewConversation,
-            modifier = Modifier.size(composerControlHeight),
-            colors = IconButtonDefaults.iconButtonColors(
-                containerColor = Color.Transparent,
-                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            ),
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Add,
-                contentDescription = stringResource(R.string.chat_header_new_conversation_title),
-            )
-        }
-
-        OutlinedTextField(
-            value = composerFieldValue,
-            onValueChange = {
-                composerFieldValue = it
-                onComposerTextChanged(it.text)
-            },
-            interactionSource = interactionSource,
+        Row(
             modifier = Modifier
-                .weight(1f)
-                .heightIn(min = composerControlHeight),
-            minLines = 1,
-            maxLines = 5,
-            enabled = !chatUiState.hasActiveGeneration,
-            placeholder = if (chatUiState.configFailure != null) {
-                {
-                    Text(text = stringResource(R.string.openai_failure_label_settings_required))
+                .fillMaxWidth(composerWidthFraction)
+                .graphicsLayer {
+                    scaleX = composerCardScale
+                    scaleY = composerCardScale
                 }
-            } else {
-                null
-            },
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = Color.Transparent,
-                unfocusedContainerColor = Color.Transparent,
-                disabledContainerColor = Color.Transparent,
-                focusedBorderColor = Color.Transparent,
-                unfocusedBorderColor = Color.Transparent,
-                disabledBorderColor = Color.Transparent,
-            ),
-        )
-
-        IconButton(
-            onClick = onSubmitPrompt,
-            enabled = chatUiState.sendEnabled,
-            modifier = Modifier.size(composerControlHeight),
-            colors = IconButtonDefaults.iconButtonColors(
-                containerColor = Color.Transparent,
-                contentColor = MaterialTheme.colorScheme.onSurface,
-                disabledContainerColor = Color.Transparent,
-                disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.42f),
-            ),
+                .clip(corners.large)
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.88f))
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.06f),
+                    shape = corners.large,
+                )
+                .padding(horizontal = composerHorizontalPadding, vertical = composerVerticalPadding),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Rounded.Send,
-                contentDescription = stringResource(R.string.send_prompt),
+            IconButton(
+                onClick = onStartNewConversation,
+                modifier = Modifier.size(composerControlHeight),
+                colors = IconButtonDefaults.iconButtonColors(
+                    containerColor = Color.Transparent,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                ),
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Add,
+                    contentDescription = stringResource(R.string.chat_header_new_conversation_title),
+                )
+            }
+
+            Spacer(modifier = Modifier.width(composerSideGap))
+
+            OutlinedTextField(
+                value = composerFieldValue,
+                onValueChange = {
+                    composerFieldValue = it
+                    onComposerTextChanged(it.text)
+                },
+                interactionSource = interactionSource,
+                modifier = Modifier
+                    .weight(1f)
+                    .heightIn(min = composerControlHeight),
+                minLines = 1,
+                maxLines = 5,
+                enabled = !chatUiState.hasActiveGeneration,
+                placeholder = if (chatUiState.configFailure != null) {
+                    {
+                        Text(text = stringResource(R.string.openai_failure_label_settings_required))
+                    }
+                } else {
+                    null
+                },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent,
+                    disabledContainerColor = Color.Transparent,
+                    focusedBorderColor = Color.Transparent,
+                    unfocusedBorderColor = Color.Transparent,
+                    disabledBorderColor = Color.Transparent,
+                ),
             )
+
+            Spacer(modifier = Modifier.width(composerSideGap))
+
+            IconButton(
+                onClick = onSubmitPrompt,
+                enabled = chatUiState.sendEnabled,
+                modifier = Modifier.size(composerControlHeight),
+                colors = IconButtonDefaults.iconButtonColors(
+                    containerColor = Color.Transparent,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    disabledContainerColor = Color.Transparent,
+                    disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.42f),
+                ),
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.Send,
+                    contentDescription = stringResource(R.string.send_prompt),
+                )
+            }
         }
     }
 }

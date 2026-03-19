@@ -80,6 +80,7 @@ class ChatViewModel(
     private val resources: Resources,
 ) : ViewModel() {
     private val pendingComposerText = MutableStateFlow("")
+    private val selectedConversationDraftOverride = MutableStateFlow<String?>(null)
     private val selectedConversationId = conversationRepository.observeSelectedConversationId()
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
@@ -112,8 +113,9 @@ class ChatViewModel(
         selectedConversationId,
         persistedDraftText,
         pendingComposerText,
-    ) { selectedId, persistedDraft, pendingComposer ->
-        if (selectedId == null) pendingComposer else persistedDraft
+        selectedConversationDraftOverride,
+    ) { selectedId, persistedDraft, pendingComposer, draftOverride ->
+        if (selectedId == null) pendingComposer else draftOverride ?: persistedDraft
     }.stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
     private val baseState = combine(
@@ -184,6 +186,7 @@ class ChatViewModel(
                 if (initialized) {
                     pendingComposerText.value = ""
                 }
+                selectedConversationDraftOverride.value = null
                 transientGenerationOverride.value = null
                 initialized = true
             }
@@ -199,16 +202,13 @@ class ChatViewModel(
                 return@launch
             }
 
-            if (text.isBlank()) {
-                conversationRepository.clearDraft(conversationId)
-            } else {
-                conversationRepository.saveDraft(conversationId, text)
-            }
+            selectedConversationDraftOverride.value = text
         }
     }
 
     fun selectConversation(conversationId: ConversationId?) {
         viewModelScope.launch {
+            persistSelectedConversationDraftIfNeeded()
             conversationRepository.selectConversation(conversationId)
         }
     }
@@ -262,6 +262,7 @@ class ChatViewModel(
                 transientGenerationOverride.value = null
                 val conversationId = conversationRepository.sendMessage(currentConversationId, composerText)
                 pendingComposerText.value = ""
+                selectedConversationDraftOverride.value = ""
                 val messagesForRemote = conversationRepository.getMessages(conversationId)
                 startStreaming(
                     conversationId = conversationId,
@@ -492,6 +493,16 @@ class ChatViewModel(
             MutableStateFlow("")
         } else {
             conversationRepository.observeDraft(conversationId).map { it?.content.orEmpty() }
+        }
+    }
+
+    private suspend fun persistSelectedConversationDraftIfNeeded() {
+        val conversationId = selectedConversationId.value ?: return
+        val overrideText = selectedConversationDraftOverride.value ?: return
+        if (overrideText.isBlank()) {
+            conversationRepository.clearDraft(conversationId)
+        } else {
+            conversationRepository.saveDraft(conversationId, overrideText)
         }
     }
 

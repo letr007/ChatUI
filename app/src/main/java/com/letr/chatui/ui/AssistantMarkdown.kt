@@ -7,6 +7,17 @@ data class MarkdownDocument(
 sealed interface MarkdownBlock {
     data class Paragraph(val text: String) : MarkdownBlock
 
+    data class Heading(
+        val level: Int,
+        val text: String,
+    ) : MarkdownBlock
+
+    data class BulletList(val items: List<String>) : MarkdownBlock
+
+    data class OrderedList(val items: List<String>) : MarkdownBlock
+
+    data class BlockQuote(val text: String) : MarkdownBlock
+
     data class CodeFence(
         val code: String,
         val language: String?,
@@ -58,6 +69,58 @@ internal object AssistantMarkdownParser {
 
                 if (lineIndex < lines.size && lines[lineIndex].trim().startsWith("```")) {
                     lineIndex += 1
+                }
+                continue
+            }
+
+            val headingMatch = Regex("^(#{1,6})\\s+(.+)$").matchEntire(trimmedLine)
+            if (headingMatch != null) {
+                flushParagraph()
+                blocks += MarkdownBlock.Heading(
+                    level = headingMatch.groupValues[1].length,
+                    text = headingMatch.groupValues[2].trim(),
+                )
+                lineIndex += 1
+                continue
+            }
+
+            if (trimmedLine.startsWith(">")) {
+                flushParagraph()
+                val quoteLines = mutableListOf<String>()
+                while (lineIndex < lines.size && lines[lineIndex].trim().startsWith(">")) {
+                    quoteLines += lines[lineIndex].trim().removePrefix(">").trimStart()
+                    lineIndex += 1
+                }
+                val quoteText = quoteLines.joinToString(separator = "\n").trim()
+                if (quoteText.isNotEmpty()) {
+                    blocks += MarkdownBlock.BlockQuote(quoteText)
+                }
+                continue
+            }
+
+            if (Regex("^[-*+]\\s+.+$").matches(trimmedLine)) {
+                flushParagraph()
+                val items = mutableListOf<String>()
+                while (lineIndex < lines.size && Regex("^[-*+]\\s+.+$").matches(lines[lineIndex].trim())) {
+                    items += lines[lineIndex].trim().removeRange(0, 2).trimStart()
+                    lineIndex += 1
+                }
+                if (items.isNotEmpty()) {
+                    blocks += MarkdownBlock.BulletList(items)
+                }
+                continue
+            }
+
+            if (Regex("^\\d+\\.\\s+.+$").matches(trimmedLine)) {
+                flushParagraph()
+                val items = mutableListOf<String>()
+                while (lineIndex < lines.size && Regex("^\\d+\\.\\s+.+$").matches(lines[lineIndex].trim())) {
+                    val current = lines[lineIndex].trim()
+                    items += current.substringAfter('.').trimStart()
+                    lineIndex += 1
+                }
+                if (items.isNotEmpty()) {
+                    blocks += MarkdownBlock.OrderedList(items)
                 }
                 continue
             }

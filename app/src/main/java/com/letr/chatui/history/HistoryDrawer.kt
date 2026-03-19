@@ -1,23 +1,25 @@
 package com.letr.chatui.history
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -32,10 +34,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import com.letr.chatui.R
 import com.letr.chatui.data.model.Conversation
 import com.letr.chatui.data.model.ConversationId
-import com.letr.chatui.ui.theme.LocalChatUiCorners
 import com.letr.chatui.ui.theme.LocalChatUiShellDimensions
 import com.letr.chatui.ui.theme.LocalChatUiSpacing
 
@@ -50,19 +52,18 @@ fun HistoryDrawer(
 ) {
     val spacing = LocalChatUiSpacing
     val shellDimensions = LocalChatUiShellDimensions
-    val corners = LocalChatUiCorners
     var renameTarget by remember { mutableStateOf<HistoryRenameTarget?>(null) }
     var deleteTarget by remember { mutableStateOf<Conversation?>(null) }
 
     ModalDrawerSheet(
         modifier = Modifier.width(shellDimensions.drawerWidth),
-        drawerContainerColor = MaterialTheme.colorScheme.surface,
+        drawerContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
     ) {
         Column(
             modifier = Modifier
                 .fillMaxHeight()
-                .padding(horizontal = spacing.large, vertical = spacing.xLarge),
-            verticalArrangement = Arrangement.spacedBy(spacing.large),
+                .padding(horizontal = spacing.medium, vertical = spacing.large),
+            verticalArrangement = Arrangement.spacedBy(spacing.medium),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -79,33 +80,18 @@ fun HistoryDrawer(
                 }
             }
 
-            Text(
-                text = stringResource(R.string.history_drawer_description),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-
-            HorizontalDivider(color = MaterialTheme.colorScheme.surfaceVariant)
-
             if (conversations.isEmpty()) {
-                Card(
-                    shape = corners.large,
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    ),
-                ) {
-                    Text(
-                        text = stringResource(R.string.history_empty_state),
-                        modifier = Modifier.padding(spacing.large),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                Text(
+                    text = stringResource(R.string.history_empty_state),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = spacing.small, vertical = spacing.medium),
+                )
             } else {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(spacing.small)) {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(spacing.xSmall)) {
                     items(conversations, key = { it.id.value }) { conversation ->
                         val selected = conversation.id == selectedConversationId
-                        HistoryConversationCard(
+                        HistoryConversationRow(
                             conversation = conversation,
                             selected = selected,
                             onSelect = { onConversationSelected(conversation.id) },
@@ -148,7 +134,8 @@ fun HistoryDrawer(
 }
 
 @Composable
-private fun HistoryConversationCard(
+@OptIn(ExperimentalFoundationApi::class)
+private fun HistoryConversationRow(
     conversation: Conversation,
     selected: Boolean,
     onSelect: () -> Unit,
@@ -156,14 +143,9 @@ private fun HistoryConversationCard(
     onDelete: () -> Unit,
 ) {
     val spacing = LocalChatUiSpacing
-    val corners = LocalChatUiCorners
-    val containerColor = if (selected) {
-        MaterialTheme.colorScheme.secondaryContainer
-    } else {
-        MaterialTheme.colorScheme.surfaceVariant
-    }
+    var menuExpanded by remember { mutableStateOf(false) }
     val contentColor = if (selected) {
-        MaterialTheme.colorScheme.onSecondaryContainer
+        MaterialTheme.colorScheme.onSurface
     } else {
         MaterialTheme.colorScheme.onSurface
     }
@@ -173,53 +155,55 @@ private fun HistoryConversationCard(
         MaterialTheme.colorScheme.onSurfaceVariant
     }
 
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = onSelect,
-            ),
-        shape = corners.medium,
-        colors = CardDefaults.cardColors(containerColor = containerColor),
-    ) {
+    Box(modifier = Modifier.fillMaxWidth()) {
         Column(
-            modifier = Modifier.padding(spacing.large),
-            verticalArrangement = Arrangement.spacedBy(spacing.small),
+            modifier = Modifier
+                .fillMaxWidth()
+                .combinedClickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onSelect,
+                    onLongClick = { menuExpanded = true },
+                )
+                .padding(horizontal = spacing.small, vertical = spacing.small),
+            verticalArrangement = Arrangement.spacedBy(spacing.xSmall),
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(spacing.xSmall)) {
-                Text(
-                    text = conversation.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color = contentColor,
-                )
-                Text(
-                    text = stringResource(
-                        R.string.history_updated_at,
-                        historyConversationTimestampLabel(
-                            updatedAtEpochMillis = conversation.updatedAtEpochMillis,
-                        ),
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = supportingColor,
-                )
-            }
+            Text(
+                text = conversation.title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = contentColor,
+            )
+            Text(
+                text = historyConversationTimestampLabel(
+                    updatedAtEpochMillis = conversation.updatedAtEpochMillis,
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = supportingColor,
+            )
+        }
 
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(spacing.small),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                TextButton(onClick = onRename) {
-                    Text(text = stringResource(R.string.history_rename))
-                }
-                OutlinedButton(onClick = onDelete) {
-                    Text(text = stringResource(R.string.delete))
-                }
-            }
+        DropdownMenu(
+            expanded = menuExpanded,
+            onDismissRequest = { menuExpanded = false },
+            modifier = Modifier.widthIn(min = 140.dp),
+        ) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.history_rename)) },
+                onClick = {
+                    menuExpanded = false
+                    onRename()
+                },
+            )
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.delete)) },
+                onClick = {
+                    menuExpanded = false
+                    onDelete()
+                },
+            )
         }
     }
 }

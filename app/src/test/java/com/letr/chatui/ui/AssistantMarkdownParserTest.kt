@@ -63,4 +63,32 @@ class AssistantMarkdownParserTest {
 
         assertTrue(document.blocks.isEmpty())
     }
+
+    @Test
+    fun `parse recognizes headings lists and block quotes`() {
+        val document = AssistantMarkdownParser.parse(
+            """
+            # Title
+
+            - first item
+            - second item
+
+            1. step one
+            2. step two
+
+            > quoted line
+            > continues here
+            """.trimIndent()
+        )
+
+        assertEquals(
+            listOf(
+                MarkdownBlock.Heading(level = 1, text = "Title"),
+                MarkdownBlock.BulletList(items = listOf("first item", "second item")),
+                MarkdownBlock.OrderedList(items = listOf("step one", "step two")),
+                MarkdownBlock.BlockQuote(text = "quoted line\ncontinues here"),
+            ),
+            document.blocks,
+        )
+    }
 }

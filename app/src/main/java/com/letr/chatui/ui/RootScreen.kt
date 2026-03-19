@@ -13,8 +13,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -26,6 +28,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Card
@@ -45,7 +48,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,9 +62,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -199,6 +210,7 @@ private fun RootTopBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .statusBarsPadding()
                 .padding(horizontal = spacing.small, vertical = spacing.xSmall),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -206,10 +218,9 @@ private fun RootTopBar(
             when (destination) {
                 AppDestination.CHAT -> {
                     IconButton(onClick = onHistoryClick) {
-                        Text(
-                            text = "≡",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
+                        Icon(
+                            imageVector = Icons.Rounded.Menu,
+                            contentDescription = stringResource(R.string.history_drawer_title),
                         )
                     }
                 }
@@ -275,7 +286,6 @@ private fun ChatHomeSurface(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .imePadding()
             .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = spacing.small),
         verticalArrangement = Arrangement.spacedBy(spacing.xSmall),
@@ -378,10 +388,9 @@ private fun CompactStatusBanner(
 
             if (chatUiState.isGenerationLockedByAnotherConversation) {
                 IconButton(onClick = onOpenHistory) {
-                    Text(
-                        text = "≡",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
+                    Icon(
+                        imageVector = Icons.Rounded.Menu,
+                        contentDescription = stringResource(R.string.history_drawer_title),
                     )
                 }
             }
@@ -440,10 +449,9 @@ private fun EmptyTranscriptState(
                         )
                     }
                     IconButton(onClick = onOpenHistory) {
-                        Text(
-                            text = "≡",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
+                        Icon(
+                            imageVector = Icons.Rounded.Menu,
+                            contentDescription = stringResource(R.string.history_drawer_title),
                         )
                     }
                 }
@@ -621,6 +629,87 @@ private fun AssistantMarkdownContent(
                     )
                 }
 
+                is MarkdownBlock.Heading -> {
+                    Text(
+                        text = buildMarkdownParagraph(
+                            text = block.text,
+                            inlineCodeBackground = MaterialTheme.colorScheme.surface,
+                            inlineCodeColor = contentColor,
+                        ),
+                        style = when (block.level) {
+                            1 -> MaterialTheme.typography.headlineSmall
+                            2 -> MaterialTheme.typography.titleLarge
+                            3 -> MaterialTheme.typography.titleMedium
+                            else -> MaterialTheme.typography.titleSmall
+                        },
+                        color = contentColor,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+
+                is MarkdownBlock.BulletList -> {
+                    Column(verticalArrangement = Arrangement.spacedBy(spacing.small)) {
+                        block.items.forEach { item ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(spacing.small)) {
+                                Text(text = "•", color = contentColor)
+                                Text(
+                                    text = buildMarkdownParagraph(
+                                        text = item,
+                                        inlineCodeBackground = MaterialTheme.colorScheme.surface,
+                                        inlineCodeColor = contentColor,
+                                    ),
+                                    modifier = Modifier.weight(1f),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = contentColor,
+                                )
+                            }
+                        }
+                    }
+                }
+
+                is MarkdownBlock.OrderedList -> {
+                    Column(verticalArrangement = Arrangement.spacedBy(spacing.small)) {
+                        block.items.forEachIndexed { index, item ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(spacing.small)) {
+                                Text(text = "${index + 1}.", color = contentColor)
+                                Text(
+                                    text = buildMarkdownParagraph(
+                                        text = item,
+                                        inlineCodeBackground = MaterialTheme.colorScheme.surface,
+                                        inlineCodeColor = contentColor,
+                                    ),
+                                    modifier = Modifier.weight(1f),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = contentColor,
+                                )
+                            }
+                        }
+                    }
+                }
+
+                is MarkdownBlock.BlockQuote -> {
+                    Row(horizontalArrangement = Arrangement.spacedBy(spacing.small)) {
+                        Spacer(
+                            modifier = Modifier
+                                .width(3.dp)
+                                .heightIn(min = 24.dp)
+                                .clip(LocalChatUiCorners.medium)
+                                .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
+                        )
+                        Text(
+                            text = buildMarkdownParagraph(
+                                text = block.text,
+                                inlineCodeBackground = MaterialTheme.colorScheme.surface,
+                                inlineCodeColor = contentColor,
+                            ),
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = contentColor.copy(alpha = 0.88f),
+                            fontStyle = FontStyle.Italic,
+                        )
+                    }
+                }
+
                 is MarkdownBlock.CodeFence -> {
                     AssistantCodeBlock(
                         block = block,
@@ -707,36 +796,59 @@ private fun buildMarkdownParagraph(
     inlineCodeBackground: Color,
     inlineCodeColor: Color,
 ): AnnotatedString {
-    val inlineCodeMarker = '`'
     return buildAnnotatedString {
         var index = 0
         while (index < text.length) {
-            val markerStart = text.indexOf(inlineCodeMarker, startIndex = index)
-            if (markerStart == -1) {
-                append(text.substring(index))
-                break
+            val token = when {
+                text.startsWith("**", index) -> "**"
+                text.startsWith("__", index) -> "__"
+                text.startsWith("*", index) -> "*"
+                text.startsWith("_", index) -> "_"
+                text.startsWith("`", index) -> "`"
+                else -> null
             }
 
-            val markerEnd = text.indexOf(inlineCodeMarker, startIndex = markerStart + 1)
+            if (token == null) {
+                append(text[index])
+                index += 1
+                continue
+            }
+
+            val contentStart = index + token.length
+            val markerEnd = text.indexOf(token, startIndex = contentStart)
             if (markerEnd == -1) {
-                append(text.substring(index))
-                break
+                append(token)
+                index += token.length
+                continue
             }
 
-            if (markerStart > index) {
-                append(text.substring(index, markerStart))
-            }
+            val inner = text.substring(contentStart, markerEnd)
+            when (token) {
+                "`" -> {
+                    pushStyle(
+                        SpanStyle(
+                            fontFamily = FontFamily.Monospace,
+                            background = inlineCodeBackground,
+                            color = inlineCodeColor,
+                        )
+                    )
+                    append(inner)
+                    pop()
+                }
 
-            pushStyle(
-                SpanStyle(
-                    fontFamily = FontFamily.Monospace,
-                    background = inlineCodeBackground,
-                    color = inlineCodeColor,
-                )
-            )
-            append(text.substring(markerStart + 1, markerEnd))
-            pop()
-            index = markerEnd + 1
+                "**", "__" -> {
+                    pushStyle(SpanStyle(fontWeight = FontWeight.SemiBold, color = inlineCodeColor))
+                    append(inner)
+                    pop()
+                }
+
+                "*", "_" -> {
+                    pushStyle(SpanStyle(fontStyle = FontStyle.Italic, color = inlineCodeColor))
+                    append(inner)
+                    pop()
+                }
+            }
+            index = markerEnd + token.length
         }
     }
 }
@@ -749,14 +861,41 @@ private fun ComposerBar(
     onSubmitPrompt: () -> Unit,
 ) {
     val spacing = LocalChatUiSpacing
+    val composerControlHeight = 56.dp
+    var composerFieldValue by rememberSaveable(
+        chatUiState.selectedConversationId?.value,
+        stateSaver = TextFieldValue.Saver,
+    ) {
+        mutableStateOf(TextFieldValue(chatUiState.composerText))
+    }
+    val shouldSyncExternalComposerText by remember(chatUiState.composerText, composerFieldValue) {
+        derivedStateOf {
+            chatUiState.composerText != composerFieldValue.text &&
+                composerFieldValue.composition == null
+        }
+    }
+
+    LaunchedEffect(chatUiState.composerText, shouldSyncExternalComposerText) {
+        if (shouldSyncExternalComposerText) {
+            composerFieldValue = TextFieldValue(
+                text = chatUiState.composerText,
+                selection = TextRange(
+                    chatUiState.composerText.length.coerceAtMost(composerFieldValue.selection.end)
+                ),
+            )
+        }
+    }
+
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .imePadding(),
         horizontalArrangement = Arrangement.spacedBy(spacing.small),
         verticalAlignment = Alignment.Bottom,
     ) {
         IconButton(
             onClick = onStartNewConversation,
-            modifier = Modifier.size(40.dp),
+            modifier = Modifier.size(composerControlHeight),
             colors = IconButtonDefaults.iconButtonColors(
                 containerColor = Color.Transparent,
                 contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -769,9 +908,14 @@ private fun ComposerBar(
         }
 
         OutlinedTextField(
-            value = chatUiState.composerText,
-            onValueChange = onComposerTextChanged,
-            modifier = Modifier.weight(1f),
+            value = composerFieldValue,
+            onValueChange = {
+                composerFieldValue = it
+                onComposerTextChanged(it.text)
+            },
+            modifier = Modifier
+                .weight(1f)
+                .heightIn(min = composerControlHeight),
             minLines = 1,
             maxLines = 5,
             enabled = !chatUiState.hasActiveGeneration,
@@ -795,7 +939,7 @@ private fun ComposerBar(
         IconButton(
             onClick = onSubmitPrompt,
             enabled = chatUiState.sendEnabled,
-            modifier = Modifier.size(40.dp),
+            modifier = Modifier.size(composerControlHeight),
             colors = IconButtonDefaults.iconButtonColors(
                 containerColor = Color.Transparent,
                 contentColor = MaterialTheme.colorScheme.onSurface,

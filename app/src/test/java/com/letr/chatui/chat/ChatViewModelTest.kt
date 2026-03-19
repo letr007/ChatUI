@@ -165,6 +165,41 @@ class ChatViewModelTest {
     }
 
     @Test
+    fun `typing in selected conversation defers draft persistence until conversation switch`() = runTest(dispatcher) {
+        val firstId = ConversationId("conversation-1")
+        val secondId = ConversationId("conversation-2")
+        val repository = FakeConversationRepository(
+            initialSelectedConversationId = firstId,
+            initialConversations = listOf(
+                Conversation(firstId, "First", 1L, 1L),
+                Conversation(secondId, "Second", 2L, 2L),
+            ),
+            initialDrafts = mapOf(
+                firstId to Draft(firstId, "draft one", 3L),
+                secondId to Draft(secondId, "draft two", 4L),
+            ),
+        )
+        val viewModel = createViewModel(
+            repository,
+            FakeAssistantStreamingRepository(repository),
+            remoteClient = FakeRemoteClient(),
+        )
+
+        advanceUntilIdle()
+        viewModel.onComposerTextChanged("edited draft")
+        advanceUntilIdle()
+
+        assertEquals("edited draft", viewModel.uiState.value.composerText)
+        assertTrue(repository.savedDraftEvents.isEmpty())
+
+        viewModel.selectConversation(secondId)
+        advanceUntilIdle()
+
+        assertEquals(listOf(firstId to "edited draft"), repository.savedDraftEvents)
+        assertEquals("draft two", viewModel.uiState.value.composerText)
+    }
+
+    @Test
     fun `stop generation preserves partial text and exposes cancelled terminal state`() = runTest(dispatcher) {
         val conversationId = ConversationId("conversation-1")
         val repository = FakeConversationRepository(

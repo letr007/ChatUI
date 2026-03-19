@@ -228,7 +228,7 @@ private fun RootTopBar(
         ) {
             when (destination) {
                 AppDestination.CHAT -> {
-                    IconButton(onClick = onHistoryClick) {
+                    FloatingTopActionButton(onClick = onHistoryClick) {
                         Icon(
                             imageVector = Icons.Rounded.Menu,
                             contentDescription = stringResource(R.string.history_drawer_title),
@@ -258,7 +258,7 @@ private fun RootTopBar(
 
             when (destination) {
                 AppDestination.CHAT -> {
-                    IconButton(onClick = onSettingsClick) {
+                    FloatingTopActionButton(onClick = onSettingsClick) {
                         Icon(
                             imageVector = Icons.Rounded.Settings,
                             contentDescription = stringResource(R.string.settings_button),
@@ -271,6 +271,32 @@ private fun RootTopBar(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun FloatingTopActionButton(
+    onClick: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    val corners = LocalChatUiCorners
+
+    Surface(
+        shape = corners.large,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
+        border = androidx.compose.foundation.BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.06f),
+        ),
+    ) {
+        IconButton(
+            onClick = onClick,
+            colors = IconButtonDefaults.iconButtonColors(
+                containerColor = Color.Transparent,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+            ),
+            content = content,
+        )
     }
 }
 

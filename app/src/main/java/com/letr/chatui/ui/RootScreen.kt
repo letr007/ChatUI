@@ -67,6 +67,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -634,10 +635,10 @@ private fun MessageBubble(
                             contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         ),
                     ) {
-                        Text(
-                            text = "复制",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
+                        Icon(
+                            painter = painterResource(android.R.drawable.ic_menu_copy),
+                            contentDescription = stringResource(R.string.copy_code),
+                            modifier = Modifier.size(16.dp),
                         )
                     }
                 }

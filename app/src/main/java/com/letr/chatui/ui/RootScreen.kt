@@ -528,12 +528,9 @@ private fun MessageBubble(
         if (message.status == MessageStatus.STREAMING) {
             var current = visibleAssistantTextLengthState.value.coerceAtMost(targetLength)
             while (current < targetLength) {
-                current = nextAssistantRevealBoundary(
-                    text = message.content,
-                    startExclusive = current,
-                ).coerceAtMost(targetLength)
+                current += 1
                 visibleAssistantTextLengthState.value = current
-                delay(streamingRevealDelayMillis(message.content, current))
+                delay(24)
             }
         } else {
             visibleAssistantTextLengthState.value = targetLength
@@ -543,8 +540,8 @@ private fun MessageBubble(
     val animatedVisibleLength by animateIntAsState(
         targetValue = if (message.author == MessageAuthor.ASSISTANT) visibleAssistantTextLength else message.content.length,
         animationSpec = tween(
-            durationMillis = if (message.status == MessageStatus.STREAMING) 140 else 220,
-            easing = FastOutSlowInEasing,
+            durationMillis = if (message.status == MessageStatus.STREAMING) 120 else 180,
+            easing = LinearEasing,
         ),
         label = "assistantVisibleLength",
     )
@@ -638,8 +635,8 @@ private fun MessageBubble(
                         ),
                     ) {
                         Text(
-                            text = "⧉",
-                            style = MaterialTheme.typography.labelLarge,
+                            text = "复制",
+                            style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.SemiBold,
                         )
                     }
@@ -1049,42 +1046,3 @@ private fun messageTimeLabel(message: Message): String {
 
     return SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(timestamp))
 }
-
-private fun nextAssistantRevealBoundary(
-    text: String,
-    startExclusive: Int,
-): Int {
-    if (startExclusive >= text.length) return text.length
-
-    val maxChunkLength = 6
-    var candidate = (startExclusive + maxChunkLength).coerceAtMost(text.length)
-    while (candidate < text.length) {
-        val previousChar = text[candidate - 1]
-        if (previousChar.isWhitespace() || previousChar in ASSISTANT_REVEAL_BREAK_CHARS) {
-            return candidate
-        }
-        candidate += 1
-    }
-    return text.length
-}
-
-private fun streamingRevealDelayMillis(
-    text: String,
-    visibleLength: Int,
-): Long {
-    if (visibleLength <= 0 || visibleLength > text.length) return 28L
-    val lastChar = text[visibleLength - 1]
-    return when {
-        lastChar == '\n' -> 80L
-        lastChar in setOf('。', '！', '？', '.', '!', '?') -> 72L
-        lastChar in setOf('，', '、', ',', ';', '；', ':', '：') -> 52L
-        lastChar.isWhitespace() -> 36L
-        else -> 24L
-    }
-}
-
-private val ASSISTANT_REVEAL_BREAK_CHARS = setOf(
-    '。', '！', '？', '，', '、', '；', '：',
-    '.', '!', '?', ',', ';', ':',
-    ')', ']', '}', '」', '』', '》', '）',
-)

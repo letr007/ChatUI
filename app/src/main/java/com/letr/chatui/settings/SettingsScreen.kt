@@ -65,7 +65,6 @@ fun SettingsScreen(
             value = uiState.apiBaseUrl,
             onValueChange = onApiBaseUrlChanged,
             label = stringResource(R.string.settings_base_url_label),
-            supporting = stringResource(R.string.settings_base_url_supporting),
             enabled = !uiState.isSaving,
             isError = uiState.validationIssues.any {
                 it == SettingsValidationIssue.MissingBaseUrl ||
@@ -79,7 +78,6 @@ fun SettingsScreen(
             value = uiState.modelId,
             onValueChange = onModelIdChanged,
             label = stringResource(R.string.settings_model_id_label),
-            supporting = stringResource(R.string.settings_model_id_supporting),
             enabled = !uiState.isSaving,
             isError = uiState.validationIssues.any { it == SettingsValidationIssue.MissingModelId },
         )
@@ -88,13 +86,6 @@ fun SettingsScreen(
             value = uiState.apiKeyInput,
             onValueChange = onApiKeyInputChanged,
             label = stringResource(R.string.settings_api_key_label),
-            supporting = when (val apiKeyState = uiState.persistedApiKeyState) {
-                PersistedApiKeyState.Missing -> stringResource(R.string.settings_api_key_required_supporting)
-                is PersistedApiKeyState.Persisted -> stringResource(
-                    R.string.settings_api_key_stored_supporting,
-                    apiKeyState.maskedValue,
-                )
-            },
             enabled = !uiState.isSaving,
             isError = uiState.validationIssues.any { it == SettingsValidationIssue.MissingApiKey },
             visualTransformation = PasswordVisualTransformation(),
@@ -155,16 +146,6 @@ fun SettingsScreen(
             }
         }
 
-        Text(
-            text = if (uiState.hasUnsavedChanges) {
-                stringResource(R.string.settings_unsaved_changes_notice)
-            } else {
-                stringResource(R.string.settings_saved_notice)
-            },
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-
         TextButton(onClick = onBackToChat) {
             Text(text = stringResource(R.string.settings_return_to_chat))
         }
@@ -205,7 +186,6 @@ private fun MinimalSettingsField(
     value: String,
     onValueChange: (String) -> Unit,
     label: String,
-    supporting: String,
     enabled: Boolean,
     isError: Boolean,
     visualTransformation: androidx.compose.ui.text.input.VisualTransformation = androidx.compose.ui.text.input.VisualTransformation.None,
@@ -237,7 +217,6 @@ private fun MinimalSettingsField(
                 isError = isError,
                 visualTransformation = visualTransformation,
                 keyboardOptions = keyboardOptions,
-                placeholder = { Text(supporting) },
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
                     unfocusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,

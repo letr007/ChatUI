@@ -455,7 +455,6 @@ private fun EmptyTranscriptState(
 ) {
     val spacing = LocalChatUiSpacing
     val hasConfigFailure = chatUiState.configFailure != null
-    val resources = LocalContext.current.resources
 
     Box(
         modifier = Modifier.fillMaxSize(),
@@ -480,13 +479,6 @@ private fun EmptyTranscriptState(
             )
 
             if (hasConfigFailure) {
-                Text(
-                    text = chatUiState.configFailure?.toUiMessage(resources)
-                        ?: stringResource(R.string.empty_state_sending_blocked),
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(spacing.small),
                     verticalAlignment = Alignment.CenterVertically,

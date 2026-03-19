@@ -1,5 +1,10 @@
 package com.letr.chatui.ui
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -48,6 +53,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
@@ -57,7 +63,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -90,6 +98,8 @@ import com.letr.chatui.ui.theme.LocalChatUiSpacing
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 
 @Composable
 fun RootScreen(
@@ -276,6 +286,9 @@ private fun ChatHomeSurface(
 ) {
     val spacing = LocalChatUiSpacing
     val listState = rememberLazyListState()
+    val floatingComposerHeight = 72.dp
+    val floatingComposerBottomPadding = spacing.medium
+    val transcriptBottomPadding = floatingComposerHeight + floatingComposerBottomPadding + spacing.large
 
     LaunchedEffect(chatUiState.messages.size, chatUiState.messages.lastOrNull()?.content, chatUiState.generationState) {
         if (chatUiState.messages.isNotEmpty()) {
@@ -283,45 +296,51 @@ private fun ChatHomeSurface(
         }
     }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .padding(horizontal = spacing.small),
-        verticalArrangement = Arrangement.spacedBy(spacing.xSmall),
     ) {
-        CompactStatusBanner(
-            chatUiState = chatUiState,
-            onOpenHistory = onOpenHistory,
-            onOpenSettings = onOpenSettings,
-        )
-
-        Box(
+        Column(
             modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
+                .fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(spacing.xSmall),
         ) {
-            if (chatUiState.messages.isEmpty()) {
-                EmptyTranscriptState(
-                    chatUiState = chatUiState,
-                    onOpenSettings = onOpenSettings,
-                    onOpenHistory = onOpenHistory,
-                )
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    state = listState,
-                    verticalArrangement = Arrangement.spacedBy(spacing.small),
-                ) {
-                    items(chatUiState.messages, key = { it.id.value }) { message ->
-                        MessageBubble(
-                            message = message,
-                            isLatestAssistant = message.id == chatUiState.messages.lastOrNull { it.author == MessageAuthor.ASSISTANT }?.id,
-                            canRegenerate = chatUiState.canRegenerate,
-                            canStopGeneration = chatUiState.canStopGeneration,
-                            onRegenerateLatestResponse = onRegenerateLatestResponse,
-                            onStopGeneration = onStopGeneration,
-                        )
+            CompactStatusBanner(
+                chatUiState = chatUiState,
+                onOpenHistory = onOpenHistory,
+                onOpenSettings = onOpenSettings,
+            )
+
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+            ) {
+                if (chatUiState.messages.isEmpty()) {
+                    EmptyTranscriptState(
+                        chatUiState = chatUiState,
+                        onOpenSettings = onOpenSettings,
+                        onOpenHistory = onOpenHistory,
+                    )
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        state = listState,
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = transcriptBottomPadding),
+                        verticalArrangement = Arrangement.spacedBy(spacing.small),
+                    ) {
+                        items(chatUiState.messages, key = { it.id.value }) { message ->
+                            MessageBubble(
+                                message = message,
+                                isLatestAssistant = message.id == chatUiState.messages.lastOrNull { it.author == MessageAuthor.ASSISTANT }?.id,
+                                canRegenerate = chatUiState.canRegenerate,
+                                canStopGeneration = chatUiState.canStopGeneration,
+                                onRegenerateLatestResponse = onRegenerateLatestResponse,
+                                onStopGeneration = onStopGeneration,
+                            )
+                        }
                     }
                 }
             }
@@ -332,6 +351,9 @@ private fun ChatHomeSurface(
             onStartNewConversation = onStartNewConversation,
             onComposerTextChanged = onComposerTextChanged,
             onSubmitPrompt = onSubmitPrompt,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = floatingComposerBottomPadding),
         )
     }
 }
@@ -354,9 +376,9 @@ private fun CompactStatusBanner(
         modifier = Modifier.fillMaxWidth(),
         shape = LocalChatUiCorners.medium,
         color = if (chatUiState.configFailure != null) {
-            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.42f)
+            MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.32f)
         } else {
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.28f)
+            MaterialTheme.colorScheme.surface.copy(alpha = 0.4f)
         },
     ) {
         Row(
@@ -482,9 +504,61 @@ private fun MessageBubble(
     val markdownDocument = remember(message.content, shouldRenderAssistantMarkdown) {
         if (shouldRenderAssistantMarkdown) AssistantMarkdownParser.parse(message.content) else null
     }
+    var hasEntered by remember(message.id.value) { mutableStateOf(false) }
+    LaunchedEffect(message.id.value) {
+        hasEntered = true
+    }
+    val revealProgress by animateFloatAsState(
+        targetValue = if (hasEntered) 1f else 0f,
+        animationSpec = tween(durationMillis = 320, easing = FastOutSlowInEasing),
+        label = "assistantMessageReveal",
+    )
+    val animatedAlpha = if (message.author == MessageAuthor.ASSISTANT) revealProgress else 1f
+    val animatedTranslationY = if (message.author == MessageAuthor.ASSISTANT) (1f - revealProgress) * 18f else 0f
+    val visibleAssistantTextLengthState = remember(message.id.value) { MutableStateFlow(message.content.length) }
+    val visibleAssistantTextLength by visibleAssistantTextLengthState.collectAsState()
+
+    LaunchedEffect(message.id.value, message.content, message.status, message.author) {
+        if (message.author != MessageAuthor.ASSISTANT) {
+            visibleAssistantTextLengthState.value = message.content.length
+            return@LaunchedEffect
+        }
+
+        val targetLength = message.content.length
+        if (message.status == MessageStatus.STREAMING) {
+            var current = visibleAssistantTextLengthState.value.coerceAtMost(targetLength)
+            while (current < targetLength) {
+                current = nextAssistantRevealBoundary(
+                    text = message.content,
+                    startExclusive = current,
+                ).coerceAtMost(targetLength)
+                visibleAssistantTextLengthState.value = current
+                delay(streamingRevealDelayMillis(message.content, current))
+            }
+        } else {
+            visibleAssistantTextLengthState.value = targetLength
+        }
+    }
+
+    val animatedVisibleLength by animateIntAsState(
+        targetValue = if (message.author == MessageAuthor.ASSISTANT) visibleAssistantTextLength else message.content.length,
+        animationSpec = tween(
+            durationMillis = if (message.status == MessageStatus.STREAMING) 140 else 220,
+            easing = FastOutSlowInEasing,
+        ),
+        label = "assistantVisibleLength",
+    )
+    val animatedAssistantText = if (message.author == MessageAuthor.ASSISTANT) {
+        message.content.take(animatedVisibleLength.coerceIn(0, message.content.length))
+    } else {
+        message.content
+    }
 
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .alpha(animatedAlpha)
+            .graphicsLayer { translationY = animatedTranslationY },
         horizontalAlignment = if (isUser) Alignment.End else Alignment.Start,
         verticalArrangement = Arrangement.spacedBy(spacing.xSmall),
     ) {
@@ -499,8 +573,8 @@ private fun MessageBubble(
                 .clip(if (isUser) corners.large else corners.medium)
                 .background(
                     when {
-                        isUser -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.34f)
-                        message.status == MessageStatus.FAILED -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f)
+                        isUser -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.26f)
+                        message.status == MessageStatus.FAILED -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.32f)
                         else -> Color.Transparent
                     }
                 )
@@ -526,7 +600,7 @@ private fun MessageBubble(
                 )
             } else {
                 Text(
-                    text = message.content.ifBlank {
+                    text = animatedAssistantText.ifBlank {
                         if (message.author == MessageAuthor.ASSISTANT && message.status == MessageStatus.STREAMING) {
                             stringResource(R.string.thinking)
                         } else {
@@ -735,7 +809,7 @@ private fun AssistantCodeBlock(
     Card(
         shape = corners.medium,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.55f),
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.42f),
         ),
     ) {
         Column(
@@ -767,10 +841,10 @@ private fun AssistantCodeBlock(
                     .fillMaxWidth()
                     .padding(horizontal = spacing.medium)
                     .clip(corners.medium)
-                    .background(MaterialTheme.colorScheme.surface)
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.72f))
                     .border(
                         width = 1.dp,
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.22f),
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f),
                         shape = corners.medium,
                     )
                     .heightIn(max = 240.dp)
@@ -859,8 +933,10 @@ private fun ComposerBar(
     onStartNewConversation: () -> Unit,
     onComposerTextChanged: (String) -> Unit,
     onSubmitPrompt: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val spacing = LocalChatUiSpacing
+    val corners = LocalChatUiCorners
     val composerControlHeight = 56.dp
     var composerFieldValue by rememberSaveable(
         chatUiState.selectedConversationId?.value,
@@ -887,9 +963,17 @@ private fun ComposerBar(
     }
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .imePadding(),
+            .imePadding()
+            .clip(corners.large)
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.88f))
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.06f),
+                shape = corners.large,
+            )
+            .padding(horizontal = spacing.small, vertical = spacing.small),
         horizontalArrangement = Arrangement.spacedBy(spacing.small),
         verticalAlignment = Alignment.Bottom,
     ) {
@@ -930,7 +1014,7 @@ private fun ComposerBar(
                 focusedContainerColor = Color.Transparent,
                 unfocusedContainerColor = Color.Transparent,
                 disabledContainerColor = Color.Transparent,
-                focusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                focusedBorderColor = Color.Transparent,
                 unfocusedBorderColor = Color.Transparent,
                 disabledBorderColor = Color.Transparent,
             ),
@@ -965,3 +1049,42 @@ private fun messageTimeLabel(message: Message): String {
 
     return SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(timestamp))
 }
+
+private fun nextAssistantRevealBoundary(
+    text: String,
+    startExclusive: Int,
+): Int {
+    if (startExclusive >= text.length) return text.length
+
+    val maxChunkLength = 6
+    var candidate = (startExclusive + maxChunkLength).coerceAtMost(text.length)
+    while (candidate < text.length) {
+        val previousChar = text[candidate - 1]
+        if (previousChar.isWhitespace() || previousChar in ASSISTANT_REVEAL_BREAK_CHARS) {
+            return candidate
+        }
+        candidate += 1
+    }
+    return text.length
+}
+
+private fun streamingRevealDelayMillis(
+    text: String,
+    visibleLength: Int,
+): Long {
+    if (visibleLength <= 0 || visibleLength > text.length) return 28L
+    val lastChar = text[visibleLength - 1]
+    return when {
+        lastChar == '\n' -> 80L
+        lastChar in setOf('。', '！', '？', '.', '!', '?') -> 72L
+        lastChar in setOf('，', '、', ',', ';', '；', ':', '：') -> 52L
+        lastChar.isWhitespace() -> 36L
+        else -> 24L
+    }
+}
+
+private val ASSISTANT_REVEAL_BREAK_CHARS = setOf(
+    '。', '！', '？', '，', '、', '；', '：',
+    '.', '!', '?', ',', ';', ':',
+    ')', ']', '}', '」', '』', '》', '）',
+)

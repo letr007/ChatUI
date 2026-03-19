@@ -11,12 +11,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -44,172 +44,129 @@ fun SettingsScreen(
     onBackToChat: () -> Unit,
 ) {
     val spacing = LocalChatUiSpacing
-    val shellDimensions = LocalChatUiShellDimensions
     val corners = LocalChatUiCorners
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = corners.large,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = spacing.large, vertical = spacing.medium),
+        verticalArrangement = Arrangement.spacedBy(spacing.medium),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(spacing.xLarge),
-            verticalArrangement = Arrangement.spacedBy(spacing.large),
-        ) {
-            Text(
-                text = stringResource(R.string.settings_title),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = stringResource(R.string.settings_description),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        Text(
+            text = stringResource(R.string.settings_title),
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.SemiBold,
+        )
 
-            SettingsFeedbackCard(uiState = uiState)
+        SettingsFeedbackCard(uiState = uiState)
 
-            OutlinedTextField(
-                value = uiState.apiBaseUrl,
-                onValueChange = onApiBaseUrlChanged,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text(stringResource(R.string.settings_base_url_label)) },
-                supportingText = { Text(stringResource(R.string.settings_base_url_supporting)) },
-                singleLine = true,
-                enabled = !uiState.isSaving,
-                isError = uiState.validationIssues.any {
-                    it == SettingsValidationIssue.MissingBaseUrl ||
-                        it is SettingsValidationIssue.InvalidBaseUrl ||
-                        it is SettingsValidationIssue.InsecureHttpBaseUrl
-                },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-            )
+        MinimalSettingsField(
+            value = uiState.apiBaseUrl,
+            onValueChange = onApiBaseUrlChanged,
+            label = stringResource(R.string.settings_base_url_label),
+            supporting = stringResource(R.string.settings_base_url_supporting),
+            enabled = !uiState.isSaving,
+            isError = uiState.validationIssues.any {
+                it == SettingsValidationIssue.MissingBaseUrl ||
+                    it is SettingsValidationIssue.InvalidBaseUrl ||
+                    it is SettingsValidationIssue.InsecureHttpBaseUrl
+            },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+        )
 
-            OutlinedTextField(
-                value = uiState.modelId,
-                onValueChange = onModelIdChanged,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text(stringResource(R.string.settings_model_id_label)) },
-                supportingText = { Text(stringResource(R.string.settings_model_id_supporting)) },
-                singleLine = true,
-                enabled = !uiState.isSaving,
-                isError = uiState.validationIssues.any { it == SettingsValidationIssue.MissingModelId },
-            )
+        MinimalSettingsField(
+            value = uiState.modelId,
+            onValueChange = onModelIdChanged,
+            label = stringResource(R.string.settings_model_id_label),
+            supporting = stringResource(R.string.settings_model_id_supporting),
+            enabled = !uiState.isSaving,
+            isError = uiState.validationIssues.any { it == SettingsValidationIssue.MissingModelId },
+        )
 
-            OutlinedTextField(
-                value = uiState.apiKeyInput,
-                onValueChange = onApiKeyInputChanged,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text(stringResource(R.string.settings_api_key_label)) },
-                supportingText = {
-                    val helper = when (val apiKeyState = uiState.persistedApiKeyState) {
-                        PersistedApiKeyState.Missing -> stringResource(R.string.settings_api_key_required_supporting)
-                        is PersistedApiKeyState.Persisted -> stringResource(
-                            R.string.settings_api_key_stored_supporting,
-                            apiKeyState.maskedValue,
-                        )
-                    }
-                    Text(helper)
-                },
-                singleLine = true,
-                enabled = !uiState.isSaving,
-                isError = uiState.validationIssues.any { it == SettingsValidationIssue.MissingApiKey },
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            )
+        MinimalSettingsField(
+            value = uiState.apiKeyInput,
+            onValueChange = onApiKeyInputChanged,
+            label = stringResource(R.string.settings_api_key_label),
+            supporting = when (val apiKeyState = uiState.persistedApiKeyState) {
+                PersistedApiKeyState.Missing -> stringResource(R.string.settings_api_key_required_supporting)
+                is PersistedApiKeyState.Persisted -> stringResource(
+                    R.string.settings_api_key_stored_supporting,
+                    apiKeyState.maskedValue,
+                )
+            },
+            enabled = !uiState.isSaving,
+            isError = uiState.validationIssues.any { it == SettingsValidationIssue.MissingApiKey },
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+        )
 
-            if (uiState.validationIssues.isNotEmpty()) {
-                Card(
-                    shape = corners.medium,
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                    ),
+        if (uiState.validationIssues.isNotEmpty()) {
+            Surface(
+                shape = corners.medium,
+                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = spacing.medium, vertical = spacing.small),
+                    verticalArrangement = Arrangement.spacedBy(spacing.xSmall),
                 ) {
-                    Column(
-                        modifier = Modifier.padding(spacing.large),
-                        verticalArrangement = Arrangement.spacedBy(spacing.small),
-                    ) {
+                    uiState.validationIssues.forEach { issue ->
                         Text(
-                            text = stringResource(R.string.settings_fix_before_saving),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Medium,
+                            text = validationIssueLabel(issue),
+                            style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onErrorContainer,
                         )
-                        uiState.validationIssues.forEach { issue ->
-                            Text(
-                                text = validationIssueLabel(issue),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                            )
-                        }
                     }
                 }
             }
+        }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(spacing.medium),
-                verticalAlignment = Alignment.CenterVertically,
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(spacing.small),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Button(
+                onClick = onSave,
+                enabled = uiState.canSave,
+                modifier = Modifier.weight(1f),
             ) {
-                Button(
-                    onClick = onSave,
-                    enabled = uiState.canSave,
-                ) {
+                if (uiState.isSaving) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.padding(end = spacing.small),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                    )
+                }
+                Text(
                     if (uiState.isSaving) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.padding(end = spacing.small),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onPrimary,
-                        )
+                        stringResource(R.string.settings_saving)
+                    } else {
+                        stringResource(R.string.settings_save)
                     }
-                    Text(
-                        if (uiState.isSaving) {
-                            stringResource(R.string.settings_saving)
-                        } else {
-                            stringResource(R.string.settings_save)
-                        }
-                    )
-                }
-
-                OutlinedButton(
-                    onClick = onClearApiKey,
-                    enabled = uiState.canClearApiKey,
-                ) {
-                    Text(stringResource(R.string.settings_clear_stored_key))
-                }
+                )
             }
 
-            Card(
-                shape = corners.medium,
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                ),
+            OutlinedButton(
+                onClick = onClearApiKey,
+                enabled = uiState.canClearApiKey,
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = shellDimensions.sectionCardMinHeight)
-                        .padding(spacing.large),
-                    contentAlignment = Alignment.CenterStart,
-                ) {
-                    Text(
-                        text = if (uiState.hasUnsavedChanges) {
-                            stringResource(R.string.settings_unsaved_changes_notice)
-                        } else {
-                            stringResource(R.string.settings_saved_notice)
-                        },
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                    )
-                }
+                Text(stringResource(R.string.settings_clear_stored_key))
             }
+        }
 
-            TextButton(onClick = onBackToChat) {
-                Text(text = stringResource(R.string.settings_return_to_chat))
-            }
+        Text(
+            text = if (uiState.hasUnsavedChanges) {
+                stringResource(R.string.settings_unsaved_changes_notice)
+            } else {
+                stringResource(R.string.settings_saved_notice)
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        TextButton(onClick = onBackToChat) {
+            Text(text = stringResource(R.string.settings_return_to_chat))
         }
     }
 }
@@ -230,16 +187,67 @@ private fun SettingsFeedbackCard(uiState: SettingsUiState) {
         MaterialTheme.colorScheme.onPrimaryContainer
     }
 
-    Card(
+    Surface(
         shape = corners.medium,
-        colors = CardDefaults.cardColors(containerColor = containerColor),
+        color = containerColor.copy(alpha = 0.5f),
     ) {
         Text(
             text = feedback.message,
-            modifier = Modifier.padding(spacing.large),
-            style = MaterialTheme.typography.bodyLarge,
+            modifier = Modifier.padding(horizontal = spacing.medium, vertical = spacing.small),
+            style = MaterialTheme.typography.bodyMedium,
             color = contentColor,
         )
+    }
+}
+
+@Composable
+private fun MinimalSettingsField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    supporting: String,
+    enabled: Boolean,
+    isError: Boolean,
+    visualTransformation: androidx.compose.ui.text.input.VisualTransformation = androidx.compose.ui.text.input.VisualTransformation.None,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+) {
+    val spacing = LocalChatUiSpacing
+    val corners = LocalChatUiCorners
+
+    Surface(
+        shape = corners.large,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.84f),
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = spacing.medium, vertical = spacing.small),
+            verticalArrangement = Arrangement.spacedBy(spacing.xSmall),
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontWeight = FontWeight.Medium,
+            )
+            OutlinedTextField(
+                value = value,
+                onValueChange = onValueChange,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                enabled = enabled,
+                isError = isError,
+                visualTransformation = visualTransformation,
+                keyboardOptions = keyboardOptions,
+                placeholder = { Text(supporting) },
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+                    unfocusedContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+                    disabledContainerColor = androidx.compose.ui.graphics.Color.Transparent,
+                    focusedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
+                    unfocusedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
+                    disabledBorderColor = androidx.compose.ui.graphics.Color.Transparent,
+                ),
+            )
+        }
     }
 }
 

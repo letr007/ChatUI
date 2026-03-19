@@ -636,7 +636,7 @@ private fun MessageBubble(
                         ),
                     ) {
                         Icon(
-                            painter = painterResource(android.R.drawable.ic_menu_copy),
+                            painter = painterResource(R.drawable.ic_copy),
                             contentDescription = stringResource(R.string.copy_code),
                             modifier = Modifier.size(16.dp),
                         )

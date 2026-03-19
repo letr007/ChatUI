@@ -149,12 +149,6 @@ private fun HistoryConversationRow(
     } else {
         MaterialTheme.colorScheme.onSurface
     }
-    val supportingColor = if (selected) {
-        MaterialTheme.colorScheme.onSecondaryContainer
-    } else {
-        MaterialTheme.colorScheme.onSurfaceVariant
-    }
-
     Box(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier
@@ -175,13 +169,6 @@ private fun HistoryConversationRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 color = contentColor,
-            )
-            Text(
-                text = historyConversationTimestampLabel(
-                    updatedAtEpochMillis = conversation.updatedAtEpochMillis,
-                ),
-                style = MaterialTheme.typography.bodySmall,
-                color = supportingColor,
             )
         }
 

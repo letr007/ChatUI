@@ -41,7 +41,6 @@ fun SettingsScreen(
     onApiKeyInputChanged: (String) -> Unit,
     onSave: () -> Unit,
     onClearApiKey: () -> Unit,
-    onBackToChat: () -> Unit,
 ) {
     val spacing = LocalChatUiSpacing
     val corners = LocalChatUiCorners
@@ -146,9 +145,9 @@ fun SettingsScreen(
             }
         }
 
-        TextButton(onClick = onBackToChat) {
-            Text(text = stringResource(R.string.settings_return_to_chat))
-        }
+//        TextButton(onClick = onBackToChat) {
+//            Text(text = stringResource(R.string.settings_return_to_chat))
+//        }
     }
 }
 

@@ -189,7 +189,6 @@ fun RootScreen(
                             onApiKeyInputChanged = onSettingsApiKeyChanged,
                             onSave = onSaveSettings,
                             onClearApiKey = onClearPersistedApiKey,
-                            onBackToChat = appShellController::navigateToChat,
                         )
                     }
                 }

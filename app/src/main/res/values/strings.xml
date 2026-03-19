@@ -36,7 +36,7 @@
     <string name="back_to_chat">返回聊天</string>
     <string name="chat_title">聊天</string>
     <string name="settings_nav_title">设置</string>
-    <string name="history_drawer_title">会话</string>
+    <string name="history_drawer_title">历史</string>
     <string name="close">关闭</string>
     <string name="history_drawer_description">历史记录保留在单个抽屉中，让聊天始终保持在你眼前。</string>
     <string name="history_empty_state">还没有已保存的会话。发送第一条消息后，这里就会自动创建记录，在不打断聊天优先流程的前提下保留历史。</string>
@@ -73,7 +73,7 @@
     <string name="status_streaming">生成中</string>
     <string name="status_complete">已完成</string>
     <string name="status_stopped">已停止</string>
-    <string name="empty_state_setup_title">请先连接聊天设置</string>
+    <string name="empty_state_setup_title">请先完成聊天设置</string>
     <string name="empty_state_transcript_title">对话将从这里开始</string>
     <string name="empty_state_sending_blocked">设置有效之前无法发送消息。</string>
     <string name="empty_state_transcript_message">在下方输入提示词即可立即创建第一段会话。流式回复会持续更新同一个助手气泡，而不会叠加重复内容。</string>

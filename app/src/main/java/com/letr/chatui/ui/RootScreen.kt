@@ -2,12 +2,17 @@ package com.letr.chatui.ui
 
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -67,19 +73,19 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.platform.LocalClipboardManager
 import com.letr.chatui.R
 import com.letr.chatui.app.AppDestination
 import com.letr.chatui.app.AppShellController
@@ -279,8 +285,35 @@ private fun FloatingTopActionButton(
     content: @Composable () -> Unit,
 ) {
     val corners = LocalChatUiCorners
+    var hasSettled by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        hasSettled = true
+    }
+
+    val settledAlpha by animateFloatAsState(
+        targetValue = if (hasSettled) 1f else 0f,
+        animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing),
+        label = "floatingTopActionAlpha",
+    )
+    val settledScale by animateFloatAsState(
+        targetValue = if (hasSettled) 1f else 0.96f,
+        animationSpec = spring(dampingRatio = 0.9f, stiffness = 820f),
+        label = "floatingTopActionScale",
+    )
+    val settledTranslationY by animateFloatAsState(
+        targetValue = if (hasSettled) 0f else -8f,
+        animationSpec = tween(durationMillis = 320, easing = FastOutSlowInEasing),
+        label = "floatingTopActionTranslationY",
+    )
 
     Surface(
+        modifier = Modifier.graphicsLayer {
+            alpha = settledAlpha
+            scaleX = settledScale
+            scaleY = settledScale
+            translationY = settledTranslationY
+        },
         shape = corners.large,
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
         border = androidx.compose.foundation.BorderStroke(
@@ -312,7 +345,7 @@ private fun ChatHomeSurface(
 ) {
     val spacing = LocalChatUiSpacing
     val listState = rememberLazyListState()
-    val floatingComposerHeight = 72.dp
+    val floatingComposerHeight = 92.dp
     val floatingComposerBottomPadding = spacing.medium
     val transcriptBottomPadding = floatingComposerHeight + floatingComposerBottomPadding + spacing.large
 
@@ -943,6 +976,7 @@ private fun buildMarkdownParagraph(
 }
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun ComposerBar(
     chatUiState: ChatUiState,
     onStartNewConversation: () -> Unit,
@@ -952,7 +986,8 @@ private fun ComposerBar(
 ) {
     val spacing = LocalChatUiSpacing
     val corners = LocalChatUiCorners
-    val composerControlHeight = 56.dp
+    val interactionSource = remember { MutableInteractionSource() }
+    val isImeVisible = androidx.compose.foundation.layout.WindowInsets.isImeVisible
     var composerFieldValue by rememberSaveable(
         chatUiState.selectedConversationId?.value,
         stateSaver = TextFieldValue.Saver,
@@ -976,11 +1011,48 @@ private fun ComposerBar(
             )
         }
     }
+    val isComposerExpanded = isImeVisible || chatUiState.hasActiveGeneration
+    val composerControlHeight by animateDpAsState(
+        targetValue = if (isComposerExpanded) 48.dp else 42.dp,
+        animationSpec = spring(
+            dampingRatio = 0.86f,
+            stiffness = 520f,
+        ),
+        label = "composerControlHeight",
+    )
+    val composerVerticalPadding by animateDpAsState(
+        targetValue = if (isComposerExpanded) spacing.xSmall else 6.dp,
+        animationSpec = spring(
+            dampingRatio = 0.88f,
+            stiffness = 560f,
+        ),
+        label = "composerVerticalPadding",
+    )
+    val composerHorizontalPadding by animateDpAsState(
+        targetValue = if (isComposerExpanded) spacing.medium else spacing.small,
+        animationSpec = spring(
+            dampingRatio = 0.9f,
+            stiffness = 580f,
+        ),
+        label = "composerHorizontalPadding",
+    )
+    val composerCardScale by animateFloatAsState(
+        targetValue = if (isComposerExpanded) 1f else 0.992f,
+        animationSpec = spring(
+            dampingRatio = 0.9f,
+            stiffness = 600f,
+        ),
+        label = "composerCardScale",
+    )
 
     Row(
         modifier = modifier
             .fillMaxWidth()
             .imePadding()
+            .graphicsLayer {
+                scaleX = composerCardScale
+                scaleY = composerCardScale
+            }
             .clip(corners.large)
             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.88f))
             .border(
@@ -988,7 +1060,7 @@ private fun ComposerBar(
                 color = MaterialTheme.colorScheme.outline.copy(alpha = 0.06f),
                 shape = corners.large,
             )
-            .padding(horizontal = spacing.small, vertical = spacing.small),
+            .padding(horizontal = composerHorizontalPadding, vertical = composerVerticalPadding),
         horizontalArrangement = Arrangement.spacedBy(spacing.small),
         verticalAlignment = Alignment.Bottom,
     ) {
@@ -1012,6 +1084,7 @@ private fun ComposerBar(
                 composerFieldValue = it
                 onComposerTextChanged(it.text)
             },
+            interactionSource = interactionSource,
             modifier = Modifier
                 .weight(1f)
                 .heightIn(min = composerControlHeight),

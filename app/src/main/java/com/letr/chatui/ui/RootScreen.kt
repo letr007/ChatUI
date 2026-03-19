@@ -74,6 +74,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
@@ -987,6 +988,7 @@ private fun ComposerBar(
     val spacing = LocalChatUiSpacing
     val corners = LocalChatUiCorners
     val interactionSource = remember { MutableInteractionSource() }
+    val focusManager = LocalFocusManager.current
     val isImeVisible = androidx.compose.foundation.layout.WindowInsets.isImeVisible
     var composerFieldValue by rememberSaveable(
         chatUiState.selectedConversationId?.value,
@@ -1011,36 +1013,35 @@ private fun ComposerBar(
             )
         }
     }
-    val isComposerExpanded = isImeVisible || chatUiState.hasActiveGeneration
-    val composerControlHeight by animateDpAsState(
-        targetValue = if (isComposerExpanded) 48.dp else 42.dp,
-        animationSpec = spring(
-            dampingRatio = 0.86f,
-            stiffness = 520f,
-        ),
-        label = "composerControlHeight",
-    )
+    LaunchedEffect(isImeVisible) {
+        if (!isImeVisible) {
+            focusManager.clearFocus(force = true)
+        }
+    }
+
+    val isComposerExpanded = isImeVisible
+    val composerControlHeight = 40.dp
     val composerVerticalPadding by animateDpAsState(
-        targetValue = if (isComposerExpanded) spacing.xSmall else 6.dp,
+        targetValue = 6.dp,
         animationSpec = spring(
-            dampingRatio = 0.88f,
-            stiffness = 560f,
+            dampingRatio = 0.92f,
+            stiffness = 760f,
         ),
         label = "composerVerticalPadding",
     )
     val composerHorizontalPadding by animateDpAsState(
-        targetValue = if (isComposerExpanded) spacing.medium else spacing.small,
+        targetValue = if (isComposerExpanded) spacing.large else spacing.small,
         animationSpec = spring(
-            dampingRatio = 0.9f,
-            stiffness = 580f,
+            dampingRatio = 0.82f,
+            stiffness = 420f,
         ),
         label = "composerHorizontalPadding",
     )
     val composerCardScale by animateFloatAsState(
-        targetValue = if (isComposerExpanded) 1f else 0.992f,
+        targetValue = if (isComposerExpanded) 1f else 0.998f,
         animationSpec = spring(
             dampingRatio = 0.9f,
-            stiffness = 600f,
+            stiffness = 700f,
         ),
         label = "composerCardScale",
     )

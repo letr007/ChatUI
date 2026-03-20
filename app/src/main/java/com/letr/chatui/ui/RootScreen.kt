@@ -57,6 +57,7 @@ import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -103,6 +104,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.letr.chatui.R
@@ -130,6 +133,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.withContext
 
 @Composable
+@Preview
 fun RootScreen(
     appShellController: AppShellController,
     conversations: List<Conversation>,
@@ -431,6 +435,12 @@ private fun ChatHomeSurface(
                                 onStopGeneration = onStopGeneration,
                             )
                         }
+
+                        if (chatUiState.generationState == ChatGenerationState.Sending) {
+                            item(key = "pending-assistant-placeholder") {
+                                PendingAssistantBubble()
+                            }
+                        }
                     }
                 }
             }
@@ -445,6 +455,22 @@ private fun ChatHomeSurface(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = floatingComposerBottomPadding),
+        )
+    }
+}
+
+@Composable
+private fun PendingAssistantBubble() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        CircularProgressIndicator(
+            modifier = Modifier.size(16.dp),
+            strokeWidth = 2.dp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -588,6 +614,10 @@ private fun MessageBubble(
         messageLooksLikeStructuredMarkdown(message.content)
     val markdownDocument = remember(message.content, shouldRenderAssistantMarkdown) {
         if (shouldRenderAssistantMarkdown) AssistantMarkdownParser.parse(message.content) else null
+    }
+    if (message.author == MessageAuthor.ASSISTANT && message.status == MessageStatus.PENDING) {
+        PendingAssistantBubble()
+        return
     }
     var hasEntered by remember(message.id.value) { mutableStateOf(false) }
     LaunchedEffect(message.id.value) {

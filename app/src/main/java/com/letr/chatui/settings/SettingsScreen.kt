@@ -1,7 +1,6 @@
 package com.letr.chatui.settings
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -26,6 +25,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.letr.chatui.R
 import com.letr.chatui.data.model.PersistedApiKeyState
@@ -145,9 +145,6 @@ fun SettingsScreen(
             }
         }
 
-//        TextButton(onClick = onBackToChat) {
-//            Text(text = stringResource(R.string.settings_return_to_chat))
-//        }
     }
 }
 

@@ -82,6 +82,8 @@
     <string name="speaker_you">你</string>
     <string name="copy_message">复制消息</string>
     <string name="thinking">思考中…</string>
+    <string name="pending_response_title">正在思考回复</string>
+    <string name="pending_response_message">请求已经发出，正在等待模型返回第一段内容。</string>
     <string name="code_label_default">代码</string>
     <string name="copy_code">复制代码</string>
     <string name="composer_sending_title">正在提交你的提示词</string>

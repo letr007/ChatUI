@@ -14,7 +14,9 @@ import com.letr.chatui.network.chatcompletions.OpenAiChatCompletionRequestDto
 import com.letr.chatui.network.chatcompletions.OpenAiChatCompletionResponseDto
 import com.letr.chatui.network.chatcompletions.OpenAiChatCompletionStreamEvent
 import com.letr.chatui.network.chatcompletions.OpenAiChatCompletionStreamingSession
+import com.letr.chatui.network.chatcompletions.OpenAiChatMessageDto
 import com.letr.chatui.network.chatcompletions.OpenAiProviderConfig
+import com.letr.chatui.network.chatcompletions.OpenAiChatMessageContentPartDto
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.delay
@@ -35,6 +37,7 @@ class ConfigBackedOpenAiChatCompletionRemoteClientTest {
         val capturedRequests = mutableListOf<OpenAiChatCompletionRequestDto>()
         val client = ConfigBackedOpenAiChatCompletionRemoteClient(
             activeChatConfigSource = FakeActiveChatConfigSource(),
+            requestFactory = FakeOpenAiChatCompletionRequestFactory(),
             adapterFactory = OpenAiChatCompletionProviderAdapterFactory { providerConfig ->
                 assertEquals("https://example.invalid/v1/", providerConfig.baseUrl)
                 assertEquals("demo-model", providerConfig.modelId)
@@ -71,6 +74,7 @@ class ConfigBackedOpenAiChatCompletionRemoteClientTest {
                     modelId = "",
                 )
             ),
+            requestFactory = FakeOpenAiChatCompletionRequestFactory(),
             adapterFactory = OpenAiChatCompletionProviderAdapterFactory {
                 error("adapter should not be created when config is invalid")
             },
@@ -98,6 +102,7 @@ class ConfigBackedOpenAiChatCompletionRemoteClientTest {
         )
         val client = ConfigBackedOpenAiChatCompletionRemoteClient(
             activeChatConfigSource = FakeActiveChatConfigSource(),
+            requestFactory = FakeOpenAiChatCompletionRequestFactory(),
             adapterFactory = OpenAiChatCompletionProviderAdapterFactory {
                 FakeProviderAdapter(
                     onCreate = { error("not used") },
@@ -128,6 +133,7 @@ class ConfigBackedOpenAiChatCompletionRemoteClientTest {
     fun `stream client converts adapter creation failure into terminal failed event`() = runBlocking {
         val client = ConfigBackedOpenAiChatCompletionRemoteClient(
             activeChatConfigSource = FakeActiveChatConfigSource(),
+            requestFactory = FakeOpenAiChatCompletionRequestFactory(),
             adapterFactory = OpenAiChatCompletionProviderAdapterFactory {
                 throw IOException("boom")
             },
@@ -166,6 +172,29 @@ class ConfigBackedOpenAiChatCompletionRemoteClientTest {
                 createdAtEpochMillis = 2,
                 updatedAtEpochMillis = 2,
             ),
+        )
+    }
+}
+
+private class FakeOpenAiChatCompletionRequestFactory : OpenAiChatCompletionRequestFactoryContract {
+    override fun create(
+        messages: List<Message>,
+        providerConfig: OpenAiProviderConfig,
+        stream: Boolean,
+    ): OpenAiChatCompletionRequestDto {
+        return OpenAiChatCompletionRequestDto(
+            model = providerConfig.modelId,
+            messages = messages.map { message ->
+                val contentParts = mutableListOf<OpenAiChatMessageContentPartDto>()
+                if (message.content.isNotBlank()) {
+                    contentParts += OpenAiChatMessageContentPartDto.Text(message.content)
+                }
+                OpenAiChatMessageDto(
+                    role = if (message.author == MessageAuthor.USER) "user" else "assistant",
+                    content = contentParts,
+                )
+            },
+            stream = stream,
         )
     }
 }

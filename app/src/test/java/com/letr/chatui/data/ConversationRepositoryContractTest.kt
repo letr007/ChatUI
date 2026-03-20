@@ -190,11 +190,15 @@ private class FakeConversationRepository : ConversationRepository {
         )
     }
 
-    override suspend fun sendMessage(conversationId: ConversationId?, content: String): ConversationId {
-        require(content.isNotBlank()) { "Blank sends must not create empty conversations." }
+    override suspend fun sendMessage(
+        conversationId: ConversationId?,
+        content: String,
+        attachedImageUris: List<String>,
+    ): ConversationId {
+        require(content.isNotBlank() || attachedImageUris.isNotEmpty()) { "Blank sends must not create empty conversations." }
 
         val targetConversation = conversationId?.let(::existingConversation)
-            ?: createConversation(content).also { createdConversation ->
+            ?: createConversation(content.ifBlank { "图片消息" }).also { createdConversation ->
                 conversations.update { existing -> existing + createdConversation }
                 messageFlow(createdConversation.id)
                 draftFlow(createdConversation.id)
@@ -206,6 +210,7 @@ private class FakeConversationRepository : ConversationRepository {
             conversationId = targetConversation.id,
             author = MessageAuthor.USER,
             content = content.trim(),
+            attachedImageUris = attachedImageUris,
             status = MessageStatus.COMPLETE,
             createdAtEpochMillis = now,
             updatedAtEpochMillis = now,

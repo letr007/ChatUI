@@ -33,6 +33,8 @@ data class MessageEntity(
     val author: MessageAuthor,
     @ColumnInfo(name = "content")
     val content: String,
+    @ColumnInfo(name = "attached_image_uris")
+    val attachedImageUris: List<String> = emptyList(),
     @ColumnInfo(name = "status")
     val status: MessageStatus,
     @ColumnInfo(name = "created_at_epoch_millis")

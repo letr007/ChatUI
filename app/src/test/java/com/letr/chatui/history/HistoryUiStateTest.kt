@@ -13,6 +13,6 @@ class HistoryUiStateTest {
     fun `historyConversationTimestampLabel uses formatter output consistently`() {
         val label = historyConversationTimestampLabel(1_234L) { "Jan 2, 3:04 PM" }
 
-        assertEquals("Updated Jan 2, 3:04 PM", label)
+        assertEquals("Jan 2, 3:04 PM", label)
     }
 }

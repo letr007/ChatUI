@@ -10,17 +10,23 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -38,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import com.letr.chatui.R
 import com.letr.chatui.data.model.Conversation
 import com.letr.chatui.data.model.ConversationId
+import com.letr.chatui.ui.theme.LocalChatUiCorners
 import com.letr.chatui.ui.theme.LocalChatUiShellDimensions
 import com.letr.chatui.ui.theme.LocalChatUiSpacing
 
@@ -48,8 +55,10 @@ fun HistoryDrawer(
     onConversationSelected: (ConversationId) -> Unit,
     onConversationRenamed: (ConversationId, String) -> Unit,
     onConversationDeleted: (ConversationId) -> Unit,
+    onStartNewConversation: () -> Unit,
     onClose: () -> Unit,
 ) {
+    val corners = LocalChatUiCorners
     val spacing = LocalChatUiSpacing
     val shellDimensions = LocalChatUiShellDimensions
     var renameTarget by remember { mutableStateOf<HistoryRenameTarget?>(null) }
@@ -80,30 +89,75 @@ fun HistoryDrawer(
                 }
             }
 
-            if (conversations.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.history_empty_state),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = spacing.small, vertical = spacing.medium),
-                )
-            } else {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(spacing.xSmall)) {
-                    items(conversations, key = { it.id.value }) { conversation ->
-                        val selected = conversation.id == selectedConversationId
-                        HistoryConversationRow(
-                            conversation = conversation,
-                            selected = selected,
-                            onSelect = { onConversationSelected(conversation.id) },
-                            onRename = {
-                                renameTarget = HistoryRenameTarget(
-                                    conversationId = conversation.id,
-                                    originalTitle = conversation.title,
-                                )
-                            },
-                            onDelete = { deleteTarget = conversation },
+            Surface(
+                onClick = {
+                    onStartNewConversation()
+                    onClose()
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 72.dp),
+                shape = corners.large,
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.42f),
+                border = androidx.compose.foundation.BorderStroke(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.14f),
+                ),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = spacing.medium, vertical = spacing.medium),
+                    horizontalArrangement = Arrangement.spacedBy(spacing.medium),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Surface(
+                        modifier = Modifier.size(40.dp),
+                        shape = corners.medium,
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
+                        border = androidx.compose.foundation.BorderStroke(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f),
+                        ),
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Rounded.Add,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurface,
+                            )
+                        }
+                    }
+
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(spacing.xSmall),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.chat_header_new_conversation_title),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
                         )
                     }
+                }
+            }
+
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(spacing.xSmall)) {
+                items(conversations, key = { it.id.value }) { conversation ->
+                    val selected = conversation.id == selectedConversationId
+                    HistoryConversationRow(
+                        conversation = conversation,
+                        selected = selected,
+                        onSelect = { onConversationSelected(conversation.id) },
+                        onRename = {
+                            renameTarget = HistoryRenameTarget(
+                                conversationId = conversation.id,
+                                originalTitle = conversation.title,
+                            )
+                        },
+                        onDelete = { deleteTarget = conversation },
+                    )
                 }
             }
         }

@@ -47,6 +47,9 @@ fun ChatUiApp() {
     val remoteClient = remember(settingsRepository) {
         ConfigBackedOpenAiChatCompletionRemoteClient(
             activeChatConfigSource = settingsRepository,
+            requestFactory = com.letr.chatui.data.remote.OpenAiChatCompletionRequestFactory(
+                contentResolver = context.contentResolver,
+            ),
             adapterFactory = RealOpenAiChatCompletionProviderAdapterFactory(
                 okHttpClient = OkHttpClient(),
             ),
@@ -94,6 +97,8 @@ fun ChatUiApp() {
             onConversationDeleted = chatViewModel::deleteConversation,
             onComposerTextChanged = chatViewModel::onComposerTextChanged,
             onSubmitPrompt = chatViewModel::submitPrompt,
+            onAttachmentUrisSelected = chatViewModel::onAttachmentUrisSelected,
+            onPendingAttachmentRemoved = chatViewModel::removePendingAttachment,
             onStartNewConversation = {
                 appShellController.syncSelectedConversation(null)
                 appShellController.navigateToChat()

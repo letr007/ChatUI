@@ -1,5 +1,8 @@
 package com.letr.chatui.data.remote
 
+import android.content.ContentResolver
+import android.net.Uri
+import android.util.Base64
 import com.letr.chatui.data.model.ActiveChatRuntimeConfig
 import com.letr.chatui.data.model.Message
 import com.letr.chatui.data.model.MessageAuthor
@@ -13,6 +16,7 @@ import com.letr.chatui.network.chatcompletions.OpenAiChatCompletionResponseDto
 import com.letr.chatui.network.chatcompletions.OpenAiChatCompletionStreamEvent
 import com.letr.chatui.network.chatcompletions.OpenAiChatCompletionStreamingSession
 import com.letr.chatui.network.chatcompletions.OpenAiChatMessageDto
+import com.letr.chatui.network.chatcompletions.OpenAiChatMessageContentPartDto
 import com.letr.chatui.network.chatcompletions.OpenAiProviderConfig
 import com.letr.chatui.network.chatcompletions.OpenAiProviderConfigValidator
 import kotlinx.coroutines.channels.awaitClose
@@ -60,8 +64,18 @@ interface ChatCompletionRemoteClient {
     fun streamChatCompletion(messages: List<Message>): OpenAiChatCompletionRemoteStreamingSession
 }
 
-class OpenAiChatCompletionRequestFactory {
+interface OpenAiChatCompletionRequestFactoryContract {
     fun create(
+        messages: List<Message>,
+        providerConfig: OpenAiProviderConfig,
+        stream: Boolean,
+    ): OpenAiChatCompletionRequestDto
+}
+
+open class OpenAiChatCompletionRequestFactory(
+    private val contentResolver: ContentResolver,
+) : OpenAiChatCompletionRequestFactoryContract {
+    override open fun create(
         messages: List<Message>,
         providerConfig: OpenAiProviderConfig,
         stream: Boolean,
@@ -69,15 +83,53 @@ class OpenAiChatCompletionRequestFactory {
         return OpenAiChatCompletionRequestDto(
             model = providerConfig.modelId,
             messages = messages
-                .filter { it.content.isNotBlank() }
+                .filter { it.content.isNotBlank() || it.attachedImageUris.isNotEmpty() }
                 .map { message ->
                     OpenAiChatMessageDto(
                         role = message.author.toRemoteRole(),
-                        content = message.content,
+                        content = buildContentParts(message),
                     )
                 },
             stream = stream,
         )
+    }
+
+    private fun buildContentParts(message: Message): List<OpenAiChatMessageContentPartDto> {
+        val parts = mutableListOf<OpenAiChatMessageContentPartDto>()
+        if (message.content.isNotBlank()) {
+            parts += OpenAiChatMessageContentPartDto.Text(text = message.content)
+        }
+        if (message.author == MessageAuthor.USER) {
+            message.attachedImageUris.forEach { uriString ->
+                toDataUrl(uriString)?.let { dataUrl ->
+                    parts += OpenAiChatMessageContentPartDto.ImageUrl(url = dataUrl)
+                }
+            }
+        }
+        return parts
+    }
+
+    private fun toDataUrl(uriString: String): String? {
+        return runCatching {
+            val uri = Uri.parse(uriString)
+            val mimeType = contentResolver.getType(uri) ?: guessMimeType(uriString) ?: "image/jpeg"
+            contentResolver.openInputStream(uri)?.use { inputStream ->
+                val bytes = inputStream.readBytes()
+                if (bytes.isEmpty()) return null
+                val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+                "data:$mimeType;base64,$base64"
+            }
+        }.getOrNull()
+    }
+
+    private fun guessMimeType(uriString: String): String? {
+        return when {
+            uriString.endsWith(".png", ignoreCase = true) -> "image/png"
+            uriString.endsWith(".webp", ignoreCase = true) -> "image/webp"
+            uriString.endsWith(".gif", ignoreCase = true) -> "image/gif"
+            uriString.endsWith(".jpg", ignoreCase = true) || uriString.endsWith(".jpeg", ignoreCase = true) -> "image/jpeg"
+            else -> null
+        }
     }
 }
 
@@ -177,7 +229,7 @@ class OpenAiChatCompletionStreamReducer(
 class ConfigBackedOpenAiChatCompletionRemoteClient(
     private val activeChatConfigSource: ActiveChatConfigSource,
     private val adapterFactory: OpenAiChatCompletionProviderAdapterFactory,
-    private val requestFactory: OpenAiChatCompletionRequestFactory = OpenAiChatCompletionRequestFactory(),
+    private val requestFactory: OpenAiChatCompletionRequestFactoryContract,
     private val streamReducer: OpenAiChatCompletionStreamReducer = OpenAiChatCompletionStreamReducer(),
 ) : ChatCompletionRemoteClient {
     suspend fun createChatCompletion(messages: List<Message>): OpenAiRemoteResult<OpenAiChatCompletionResponseDto> {
@@ -215,7 +267,7 @@ class ConfigBackedOpenAiChatCompletionRemoteClient(
 private class ConfigBackedOpenAiChatCompletionRemoteStreamingSession(
     private val activeChatConfigSource: ActiveChatConfigSource,
     private val adapterFactory: OpenAiChatCompletionProviderAdapterFactory,
-    private val requestFactory: OpenAiChatCompletionRequestFactory,
+    private val requestFactory: OpenAiChatCompletionRequestFactoryContract,
     private val streamReducer: OpenAiChatCompletionStreamReducer,
     private val messages: List<Message>,
 ) : OpenAiChatCompletionRemoteStreamingSession {

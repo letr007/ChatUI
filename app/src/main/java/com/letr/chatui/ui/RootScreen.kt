@@ -1,5 +1,16 @@
 package com.letr.chatui.ui
 
+import android.graphics.BitmapFactory
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateDpAsState
@@ -7,6 +18,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -32,6 +44,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
@@ -61,9 +74,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -71,6 +85,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -85,7 +101,9 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.letr.chatui.R
 import com.letr.chatui.app.AppDestination
@@ -106,8 +124,10 @@ import com.letr.chatui.ui.theme.LocalChatUiSpacing
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.withContext
 
 @Composable
 fun RootScreen(
@@ -119,6 +139,8 @@ fun RootScreen(
     onConversationDeleted: (ConversationId) -> Unit,
     onComposerTextChanged: (String) -> Unit,
     onSubmitPrompt: () -> Unit,
+    onAttachmentUrisSelected: (List<String>) -> Unit,
+    onPendingAttachmentRemoved: (String) -> Unit,
     onStartNewConversation: () -> Unit,
     onStopGeneration: () -> Unit,
     onRegenerateLatestResponse: () -> Unit,
@@ -149,6 +171,7 @@ fun RootScreen(
                 onConversationSelected = onConversationSelected,
                 onConversationRenamed = onConversationRenamed,
                 onConversationDeleted = onConversationDeleted,
+                onStartNewConversation = onStartNewConversation,
                 onClose = appShellController::closeHistoryDrawer,
             )
         },
@@ -180,7 +203,8 @@ fun RootScreen(
                             chatUiState = chatUiState,
                             onComposerTextChanged = onComposerTextChanged,
                             onSubmitPrompt = onSubmitPrompt,
-                            onStartNewConversation = onStartNewConversation,
+                            onAttachmentUrisSelected = onAttachmentUrisSelected,
+                            onPendingAttachmentRemoved = onPendingAttachmentRemoved,
                             onStopGeneration = onStopGeneration,
                             onRegenerateLatestResponse = onRegenerateLatestResponse,
                             onOpenHistory = appShellController::openHistoryDrawer,
@@ -338,7 +362,8 @@ private fun ChatHomeSurface(
     chatUiState: ChatUiState,
     onComposerTextChanged: (String) -> Unit,
     onSubmitPrompt: () -> Unit,
-    onStartNewConversation: () -> Unit,
+    onAttachmentUrisSelected: (List<String>) -> Unit,
+    onPendingAttachmentRemoved: (String) -> Unit,
     onStopGeneration: () -> Unit,
     onRegenerateLatestResponse: () -> Unit,
     onOpenHistory: () -> Unit,
@@ -346,12 +371,17 @@ private fun ChatHomeSurface(
 ) {
     val spacing = LocalChatUiSpacing
     val listState = rememberLazyListState()
-    val floatingComposerHeight = 92.dp
+    val floatingComposerHeight = if (chatUiState.pendingAttachmentUris.isEmpty()) 92.dp else 168.dp
     val floatingComposerBottomPadding = spacing.medium
     val transcriptBottomPadding = floatingComposerHeight + floatingComposerBottomPadding + spacing.large
+    val shouldStickTranscriptToBottom by remember(listState, chatUiState.messages.lastIndex) {
+        derivedStateOf {
+            listState.shouldAutoScrollToLatest(chatUiState.messages.lastIndex)
+        }
+    }
 
     LaunchedEffect(chatUiState.messages.size, chatUiState.messages.lastOrNull()?.content, chatUiState.generationState) {
-        if (chatUiState.messages.isNotEmpty()) {
+        if (chatUiState.messages.isNotEmpty() && shouldStickTranscriptToBottom) {
             listState.animateScrollToItem(chatUiState.messages.lastIndex)
         }
     }
@@ -408,9 +438,10 @@ private fun ChatHomeSurface(
 
         ComposerBar(
             chatUiState = chatUiState,
-            onStartNewConversation = onStartNewConversation,
             onComposerTextChanged = onComposerTextChanged,
             onSubmitPrompt = onSubmitPrompt,
+            onAttachmentUrisSelected = onAttachmentUrisSelected,
+            onPendingAttachmentRemoved = onPendingAttachmentRemoved,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = floatingComposerBottomPadding),
@@ -552,7 +583,9 @@ private fun MessageBubble(
         else -> MaterialTheme.colorScheme.onSurface
     }
     val clipboardManager = LocalClipboardManager.current
-    val shouldRenderAssistantMarkdown = message.author == MessageAuthor.ASSISTANT && message.status == MessageStatus.COMPLETE
+    val shouldRenderAssistantMarkdown = message.author == MessageAuthor.ASSISTANT &&
+        message.status == MessageStatus.COMPLETE &&
+        messageLooksLikeStructuredMarkdown(message.content)
     val markdownDocument = remember(message.content, shouldRenderAssistantMarkdown) {
         if (shouldRenderAssistantMarkdown) AssistantMarkdownParser.parse(message.content) else null
     }
@@ -642,23 +675,34 @@ private fun MessageBubble(
                 ),
             verticalArrangement = Arrangement.spacedBy(spacing.small),
         ) {
+            if (isUser && message.attachedImageUris.isNotEmpty()) {
+                UriImageStrip(
+                    uriStrings = message.attachedImageUris,
+                    removable = false,
+                    thumbnailSize = 112.dp,
+                )
+            }
+
             if (markdownDocument != null && markdownDocument.blocks.isNotEmpty()) {
                 AssistantMarkdownContent(
                     document = markdownDocument,
                     contentColor = contentColor,
                 )
             } else {
-                Text(
-                    text = animatedAssistantText.ifBlank {
-                        if (message.author == MessageAuthor.ASSISTANT && message.status == MessageStatus.STREAMING) {
-                            stringResource(R.string.thinking)
-                        } else {
-                            ""
-                        }
-                    },
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = contentColor,
-                )
+                val fallbackText = animatedAssistantText.ifBlank {
+                    if (message.author == MessageAuthor.ASSISTANT && message.status == MessageStatus.STREAMING) {
+                        stringResource(R.string.thinking)
+                    } else {
+                        ""
+                    }
+                }
+                if (fallbackText.isNotBlank()) {
+                    Text(
+                        text = fallbackText,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = contentColor,
+                    )
+                }
             }
             if (message.failureReason != null) {
                 HorizontalDivider(color = contentColor.copy(alpha = 0.12f))
@@ -727,6 +771,33 @@ private fun MessageBubble(
                 }
             }
         }
+    }
+}
+
+private fun LazyListState.shouldAutoScrollToLatest(lastIndex: Int): Boolean {
+    if (lastIndex < 0) return false
+    val visibleItems = layoutInfo.visibleItemsInfo
+    if (visibleItems.isEmpty()) return true
+    val lastVisibleItem = visibleItems.last()
+    val viewportBottom = layoutInfo.viewportEndOffset
+    val bottomGap = viewportBottom - (lastVisibleItem.offset + lastVisibleItem.size)
+    return lastVisibleItem.index >= lastIndex && bottomGap >= -96
+}
+
+private fun messageLooksLikeStructuredMarkdown(content: String): Boolean {
+    if (content.isBlank()) return false
+    val trimmed = content.trim()
+    if (trimmed.startsWith("```") && trimmed.count { it == '`' } >= 6) {
+        return true
+    }
+
+    return trimmed.lineSequence().any { line ->
+        val candidate = line.trimStart()
+        candidate.startsWith("#") ||
+            candidate.startsWith(">") ||
+            candidate.startsWith("- ") ||
+            candidate.startsWith("* ") ||
+            candidate.matches(Regex("\\d+\\.\\s+.+"))
     }
 }
 
@@ -980,9 +1051,10 @@ private fun buildMarkdownParagraph(
 @OptIn(ExperimentalLayoutApi::class)
 private fun ComposerBar(
     chatUiState: ChatUiState,
-    onStartNewConversation: () -> Unit,
     onComposerTextChanged: (String) -> Unit,
     onSubmitPrompt: () -> Unit,
+    onAttachmentUrisSelected: (List<String>) -> Unit,
+    onPendingAttachmentRemoved: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val spacing = LocalChatUiSpacing
@@ -991,6 +1063,12 @@ private fun ComposerBar(
     val focusManager = LocalFocusManager.current
     val isImeVisible = androidx.compose.foundation.layout.WindowInsets.isImeVisible
     val isComposerFocused by interactionSource.collectIsFocusedAsState()
+    var attachmentMenuExpanded by remember { mutableStateOf(false) }
+    val attachmentPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetMultipleContents(),
+    ) { uris ->
+        onAttachmentUrisSelected(uris.map(Uri::toString))
+    }
     var composerFieldValue by rememberSaveable(
         chatUiState.selectedConversationId?.value,
         stateSaver = TextFieldValue.Saver,
@@ -1029,9 +1107,9 @@ private fun ComposerBar(
         ),
         label = "composerWidthFraction",
     )
-    val composerControlHeight = 40.dp
+    val composerControlHeight = 36.dp
     val composerVerticalPadding by animateDpAsState(
-        targetValue = spacing.small,
+        targetValue = spacing.xSmall,
         animationSpec = spring(
             dampingRatio = 0.92f,
             stiffness = 760f,
@@ -1069,87 +1147,380 @@ private fun ComposerBar(
             .imePadding(),
         contentAlignment = Alignment.Center,
     ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(composerWidthFraction),
+            verticalArrangement = Arrangement.spacedBy(spacing.small),
+        ) {
+            AnimatedVisibility(
+                visible = attachmentMenuExpanded,
+                enter = fadeIn(
+                    animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing),
+                ) + slideInVertically(
+                    initialOffsetY = { it / 3 },
+                    animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
+                ) + scaleIn(
+                    initialScale = 0.96f,
+                    animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
+                ),
+                exit = fadeOut(
+                    animationSpec = tween(durationMillis = 140, easing = FastOutSlowInEasing),
+                ) + slideOutVertically(
+                    targetOffsetY = { it / 4 },
+                    animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing),
+                ) + scaleOut(
+                    targetScale = 0.98f,
+                    animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing),
+                ),
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+            ) {
+                AttachmentChooserPanel(
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !chatUiState.hasActiveGeneration,
+                    onCameraClick = {
+                        attachmentMenuExpanded = false
+                    },
+                    onGalleryClick = {
+                        attachmentMenuExpanded = false
+                        attachmentPickerLauncher.launch("image/*")
+                    },
+                )
+            }
+
+            Column(
+                modifier = Modifier
+                    .graphicsLayer {
+                        scaleX = composerCardScale
+                        scaleY = composerCardScale
+                    }
+                    .clip(corners.large)
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.88f))
+                    .border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.06f),
+                        shape = corners.large,
+                    )
+                    .padding(horizontal = composerHorizontalPadding, vertical = composerVerticalPadding),
+                verticalArrangement = Arrangement.spacedBy(spacing.small),
+            ) {
+                if (chatUiState.pendingAttachmentUris.isNotEmpty()) {
+                    UriImageStrip(
+                        uriStrings = chatUiState.pendingAttachmentUris,
+                        removable = true,
+                        thumbnailSize = 56.dp,
+                        onRemove = onPendingAttachmentRemoved,
+                    )
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(
+                        onClick = { attachmentMenuExpanded = !attachmentMenuExpanded },
+                        enabled = !chatUiState.hasActiveGeneration,
+                        modifier = Modifier.size(composerControlHeight),
+                        colors = IconButtonDefaults.iconButtonColors(
+                            containerColor = Color.Transparent,
+                            contentColor = if (attachmentMenuExpanded) {
+                                MaterialTheme.colorScheme.onPrimaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            disabledContainerColor = Color.Transparent,
+                            disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.42f),
+                        ),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Add,
+                            contentDescription = stringResource(R.string.attach_image),
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(composerSideGap))
+
+                    OutlinedTextField(
+                        value = composerFieldValue,
+                        onValueChange = {
+                            composerFieldValue = it
+                            onComposerTextChanged(it.text)
+                        },
+                        interactionSource = interactionSource,
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = composerControlHeight),
+                        minLines = 1,
+                        maxLines = 5,
+                        enabled = !chatUiState.hasActiveGeneration,
+                        placeholder = if (chatUiState.configFailure != null) {
+                            {
+                                Text(text = stringResource(R.string.openai_failure_label_settings_required))
+                            }
+                        } else {
+                            null
+                        },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent,
+                            disabledContainerColor = Color.Transparent,
+                            focusedBorderColor = Color.Transparent,
+                            unfocusedBorderColor = Color.Transparent,
+                            disabledBorderColor = Color.Transparent,
+                        ),
+                    )
+
+                    Spacer(modifier = Modifier.width(composerSideGap))
+
+                    IconButton(
+                        onClick = onSubmitPrompt,
+                        enabled = chatUiState.sendEnabled,
+                        modifier = Modifier.size(composerControlHeight),
+                        colors = IconButtonDefaults.iconButtonColors(
+                            containerColor = Color.Transparent,
+                            contentColor = MaterialTheme.colorScheme.onSurface,
+                            disabledContainerColor = Color.Transparent,
+                            disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.42f),
+                        ),
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.Send,
+                            contentDescription = stringResource(R.string.send_prompt),
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AttachmentChooserPanel(
+    modifier: Modifier = Modifier,
+    enabled: Boolean,
+    onCameraClick: () -> Unit,
+    onGalleryClick: () -> Unit,
+) {
+    val spacing = LocalChatUiSpacing
+    val corners = LocalChatUiCorners
+
+    Surface(
+        modifier = modifier,
+        shape = corners.medium,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+        border = androidx.compose.foundation.BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f),
+        ),
+    ) {
         Row(
             modifier = Modifier
-                .fillMaxWidth(composerWidthFraction)
-                .graphicsLayer {
-                    scaleX = composerCardScale
-                    scaleY = composerCardScale
-                }
-                .clip(corners.large)
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.88f))
-                .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.06f),
-                    shape = corners.large,
-                )
-                .padding(horizontal = composerHorizontalPadding, vertical = composerVerticalPadding),
-            verticalAlignment = Alignment.CenterVertically,
+                .fillMaxWidth()
+                .padding(horizontal = spacing.small, vertical = spacing.small),
+            horizontalArrangement = Arrangement.spacedBy(spacing.small),
         ) {
-            IconButton(
-                onClick = onStartNewConversation,
-                modifier = Modifier.size(composerControlHeight),
-                colors = IconButtonDefaults.iconButtonColors(
-                    containerColor = Color.Transparent,
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                ),
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Add,
-                    contentDescription = stringResource(R.string.chat_header_new_conversation_title),
-                )
-            }
-
-            Spacer(modifier = Modifier.width(composerSideGap))
-
-            OutlinedTextField(
-                value = composerFieldValue,
-                onValueChange = {
-                    composerFieldValue = it
-                    onComposerTextChanged(it.text)
-                },
-                interactionSource = interactionSource,
-                modifier = Modifier
-                    .weight(1f)
-                    .heightIn(min = composerControlHeight),
-                minLines = 1,
-                maxLines = 5,
-                enabled = !chatUiState.hasActiveGeneration,
-                placeholder = if (chatUiState.configFailure != null) {
-                    {
-                        Text(text = stringResource(R.string.openai_failure_label_settings_required))
-                    }
-                } else {
-                    null
-                },
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent,
-                    disabledContainerColor = Color.Transparent,
-                    focusedBorderColor = Color.Transparent,
-                    unfocusedBorderColor = Color.Transparent,
-                    disabledBorderColor = Color.Transparent,
-                ),
+            AttachmentChooserOption(
+                modifier = Modifier.weight(1f),
+                icon = Icons.Rounded.Add,
+                label = stringResource(R.string.attachment_menu_camera),
+                enabled = false,
+                onClick = onCameraClick,
             )
+            AttachmentChooserOption(
+                modifier = Modifier.weight(1f),
+                icon = Icons.Rounded.Menu,
+                label = stringResource(R.string.attachment_menu_gallery),
+                enabled = enabled,
+                onClick = onGalleryClick,
+            )
+        }
+    }
+}
 
-            Spacer(modifier = Modifier.width(composerSideGap))
+@Composable
+private fun AttachmentChooserOption(
+    modifier: Modifier = Modifier,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    val spacing = LocalChatUiSpacing
+    val corners = LocalChatUiCorners
+    val containerColor = if (enabled) {
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
+    } else {
+        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f)
+    }
+    val iconContainerColor = if (enabled) {
+        MaterialTheme.colorScheme.surface.copy(alpha = 0.88f)
+    } else {
+        MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)
+    }
+    val contentColor = if (enabled) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.54f)
+    }
 
-            IconButton(
-                onClick = onSubmitPrompt,
-                enabled = chatUiState.sendEnabled,
-                modifier = Modifier.size(composerControlHeight),
-                colors = IconButtonDefaults.iconButtonColors(
-                    containerColor = Color.Transparent,
-                    contentColor = MaterialTheme.colorScheme.onSurface,
-                    disabledContainerColor = Color.Transparent,
-                    disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.42f),
+    Surface(
+        modifier = modifier,
+        onClick = onClick,
+        enabled = enabled,
+        shape = corners.medium,
+        color = containerColor,
+        border = androidx.compose.foundation.BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outline.copy(alpha = if (enabled) 0.1f else 0.06f),
+        ),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = spacing.small, vertical = spacing.medium),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(spacing.small),
+        ) {
+            Surface(
+                modifier = Modifier.size(44.dp),
+                shape = corners.medium,
+                color = iconContainerColor,
+                border = androidx.compose.foundation.BorderStroke(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f),
                 ),
             ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.Send,
-                    contentDescription = stringResource(R.string.send_prompt),
-                )
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = contentColor,
+                    )
+                }
             }
+
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Medium,
+                color = contentColor,
+            )
+        }
+    }
+}
+
+@Composable
+private fun UriImageStrip(
+    uriStrings: List<String>,
+    removable: Boolean,
+    thumbnailSize: Dp,
+    onRemove: (String) -> Unit = {},
+) {
+    val spacing = LocalChatUiSpacing
+    val scrollState = rememberScrollState()
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(scrollState),
+        horizontalArrangement = Arrangement.spacedBy(spacing.small),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        uriStrings.forEach { uriString ->
+            UriImageThumbnail(
+                uriString = uriString,
+                size = thumbnailSize,
+                removable = removable,
+                onRemove = { onRemove(uriString) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun UriImageThumbnail(
+    uriString: String,
+    size: Dp,
+    removable: Boolean,
+    onRemove: () -> Unit,
+) {
+    val corners = LocalChatUiCorners
+
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(corners.medium)
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.72f))
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
+                shape = corners.medium,
+            ),
+    ) {
+        UriPreviewImage(
+            uriString = uriString,
+            modifier = Modifier.fillMaxSize(),
+        )
+
+        if (removable) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp),
+                shape = LocalChatUiCorners.medium,
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+            ) {
+                IconButton(
+                    onClick = onRemove,
+                    modifier = Modifier.size(20.dp),
+                    colors = IconButtonDefaults.iconButtonColors(
+                        containerColor = Color.Transparent,
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                    ),
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Close,
+                        contentDescription = stringResource(R.string.remove_attachment),
+                        modifier = Modifier.size(12.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun UriPreviewImage(
+    uriString: String,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val imageBitmap by produceState<ImageBitmap?>(initialValue = null, uriString) {
+        value = withContext(Dispatchers.IO) {
+            runCatching {
+                context.contentResolver.openInputStream(Uri.parse(uriString))?.use { inputStream ->
+                    BitmapFactory.decodeStream(inputStream)?.asImageBitmap()
+                }
+            }.getOrNull()
+        }
+    }
+
+    if (imageBitmap != null) {
+        Image(
+            bitmap = imageBitmap!!,
+            contentDescription = null,
+            modifier = modifier,
+            contentScale = ContentScale.Crop,
+        )
+    } else {
+        Box(
+            modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Add,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

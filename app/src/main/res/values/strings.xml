@@ -96,6 +96,11 @@
     <string name="composer_placeholder_needs_settings">请先打开设置并配置聊天服务，随后回来发送第一条提示词。</string>
     <string name="composer_placeholder_default">你可以让它起草内容、头脑风暴、协助调试，或输入任何想在会话中流式生成的内容。</string>
     <string name="send_prompt">发送提示词</string>
+    <string name="attach_image">添加图片</string>
+    <string name="attachment_menu_camera">拍摄</string>
+    <string name="attachment_menu_gallery">相册</string>
+    <string name="remove_attachment">移除附件</string>
+    <string name="history_drawer_new_chat_supporting">清空当前输入，立即开始一段新的对话。</string>
     <string name="fix_settings">修复设置</string>
     <string name="live">实时</string>
     <string name="assistant_status_streaming">助手 • 生成中</string>

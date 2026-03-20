@@ -17,8 +17,18 @@ data class OpenAiChatCompletionRequestDto(
 
 data class OpenAiChatMessageDto(
     val role: String,
-    val content: String,
+    val content: List<OpenAiChatMessageContentPartDto>,
 )
+
+sealed interface OpenAiChatMessageContentPartDto {
+    data class Text(
+        val text: String,
+    ) : OpenAiChatMessageContentPartDto
+
+    data class ImageUrl(
+        val url: String,
+    ) : OpenAiChatMessageContentPartDto
+}
 
 data class OpenAiChatCompletionResponseDto(
     val id: String?,

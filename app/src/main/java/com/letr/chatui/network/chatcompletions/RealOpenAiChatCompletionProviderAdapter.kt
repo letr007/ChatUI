@@ -180,7 +180,27 @@ private fun OpenAiChatCompletionRequestDto.toJson(): String {
     messages.forEach { message ->
         writer.beginObject()
         writer.name("role").value(message.role)
-        writer.name("content").value(message.content)
+        writer.name("content")
+        writer.beginArray()
+        message.content.forEach { part ->
+            writer.beginObject()
+            when (part) {
+                is OpenAiChatMessageContentPartDto.Text -> {
+                    writer.name("type").value("text")
+                    writer.name("text").value(part.text)
+                }
+
+                is OpenAiChatMessageContentPartDto.ImageUrl -> {
+                    writer.name("type").value("image_url")
+                    writer.name("image_url")
+                    writer.beginObject()
+                    writer.name("url").value(part.url)
+                    writer.endObject()
+                }
+            }
+            writer.endObject()
+        }
+        writer.endArray()
         writer.endObject()
     }
     writer.endArray()

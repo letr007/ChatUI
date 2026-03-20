@@ -5,6 +5,8 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [
@@ -13,7 +15,7 @@ import androidx.room.TypeConverters
         DraftEntity::class,
         SelectedConversationEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 @TypeConverters(RoomTypeConverters::class)
@@ -29,12 +31,20 @@ abstract class ChatUiDatabase : RoomDatabase() {
     companion object {
         const val DATABASE_NAME: String = "chatui.db"
 
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    "ALTER TABLE messages ADD COLUMN attached_image_uris TEXT NOT NULL DEFAULT ''"
+                )
+            }
+        }
+
         fun create(context: Context): ChatUiDatabase {
             return Room.databaseBuilder(
                 context = context.applicationContext,
                 klass = ChatUiDatabase::class.java,
                 name = DATABASE_NAME,
-            ).build()
+            ).addMigrations(MIGRATION_1_2).build()
         }
     }
 }

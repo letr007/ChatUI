@@ -16,4 +16,10 @@ class RoomTypeConverters {
 
     @TypeConverter
     fun toMessageStatus(status: String): MessageStatus = MessageStatus.valueOf(status)
+
+    @TypeConverter
+    fun fromStringList(values: List<String>): String = values.joinToString(separator = "\n")
+
+    @TypeConverter
+    fun toStringList(values: String): List<String> = if (values.isBlank()) emptyList() else values.split('\n')
 }

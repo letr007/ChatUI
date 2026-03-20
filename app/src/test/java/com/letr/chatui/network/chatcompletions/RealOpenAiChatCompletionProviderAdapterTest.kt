@@ -46,7 +46,12 @@ class RealOpenAiChatCompletionProviderAdapterTest {
         val response = adapter.createChatCompletion(
             OpenAiChatCompletionRequestDto(
                 model = "demo-model",
-                messages = listOf(OpenAiChatMessageDto(role = "user", content = "Explain binary search in Kotlin")),
+                messages = listOf(
+                    OpenAiChatMessageDto(
+                        role = "user",
+                        content = listOf(OpenAiChatMessageContentPartDto.Text("Explain binary search in Kotlin")),
+                    )
+                ),
                 stream = false,
             )
         )
@@ -79,7 +84,12 @@ class RealOpenAiChatCompletionProviderAdapterTest {
         val session = createAdapter().streamChatCompletion(
             OpenAiChatCompletionRequestDto(
                 model = "demo-model",
-                messages = listOf(OpenAiChatMessageDto(role = "user", content = "Explain binary search in Kotlin")),
+                messages = listOf(
+                    OpenAiChatMessageDto(
+                        role = "user",
+                        content = listOf(OpenAiChatMessageContentPartDto.Text("Explain binary search in Kotlin")),
+                    )
+                ),
                 stream = true,
             )
         )
@@ -119,7 +129,12 @@ class RealOpenAiChatCompletionProviderAdapterTest {
             val malformedSession = createAdapter().streamChatCompletion(
                 OpenAiChatCompletionRequestDto(
                     model = "demo-model",
-                    messages = listOf(OpenAiChatMessageDto(role = "user", content = "Prompt")),
+                    messages = listOf(
+                        OpenAiChatMessageDto(
+                            role = "user",
+                            content = listOf(OpenAiChatMessageContentPartDto.Text("Prompt")),
+                        )
+                    ),
                     stream = true,
                 )
             )
@@ -132,7 +147,12 @@ class RealOpenAiChatCompletionProviderAdapterTest {
             val interruptedSession = createAdapter().streamChatCompletion(
                 OpenAiChatCompletionRequestDto(
                     model = "demo-model",
-                    messages = listOf(OpenAiChatMessageDto(role = "user", content = "Prompt")),
+                    messages = listOf(
+                        OpenAiChatMessageDto(
+                            role = "user",
+                            content = listOf(OpenAiChatMessageContentPartDto.Text("Prompt")),
+                        )
+                    ),
                     stream = true,
                 )
             )
@@ -167,7 +187,12 @@ class RealOpenAiChatCompletionProviderAdapterTest {
             val session = createAdapter().streamChatCompletion(
                 OpenAiChatCompletionRequestDto(
                     model = "demo-model",
-                    messages = listOf(OpenAiChatMessageDto(role = "user", content = "Prompt")),
+                    messages = listOf(
+                        OpenAiChatMessageDto(
+                            role = "user",
+                            content = listOf(OpenAiChatMessageContentPartDto.Text("Prompt")),
+                        )
+                    ),
                     stream = true,
                 )
             )

@@ -48,7 +48,11 @@ interface ConversationRepository {
      * When [conversationId] is null, this call is responsible for creating the
      * conversation from the first user message before persisting the message.
      */
-    suspend fun sendMessage(conversationId: ConversationId?, content: String): ConversationId
+    suspend fun sendMessage(
+        conversationId: ConversationId?,
+        content: String,
+        attachedImageUris: List<String> = emptyList(),
+    ): ConversationId
 
     suspend fun selectConversation(conversationId: ConversationId?)
 

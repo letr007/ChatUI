@@ -19,6 +19,10 @@ class RoomConversationRepository(
     private val messageIdFactory: () -> MessageId = { MessageId(UUID.randomUUID().toString()) },
  ) : ConversationRepository, AssistantStreamingRepository {
 
+    private companion object {
+        const val IMAGE_ONLY_CONVERSATION_TITLE = "图片消息"
+    }
+
     suspend fun recoverPersistedLaunchState() {
         localDataSource.inTransaction {
             val recoveredAtEpochMillis = nowEpochMillis()
@@ -61,15 +65,24 @@ class RoomConversationRepository(
         return buildConversation(firstUserMessage)
     }
 
-    override suspend fun sendMessage(conversationId: ConversationId?, content: String): ConversationId {
+    override suspend fun sendMessage(
+        conversationId: ConversationId?,
+        content: String,
+        attachedImageUris: List<String>,
+    ): ConversationId {
         val trimmedContent = content.trim()
-        require(trimmedContent.isNotBlank()) { "Blank sends must not create empty conversations." }
+        val normalizedImageUris = attachedImageUris.distinct()
+        require(trimmedContent.isNotBlank() || normalizedImageUris.isNotEmpty()) {
+            "Blank sends must not create empty conversations."
+        }
 
         return localDataSource.inTransaction {
             val targetConversation = if (conversationId != null) {
                 requireConversation(conversationId)
             } else {
-                val createdConversation = createConversation(trimmedContent)
+                val createdConversation = createConversation(
+                    trimmedContent.ifBlank { IMAGE_ONLY_CONVERSATION_TITLE }
+                )
                 localDataSource.insertConversation(createdConversation)
                 createdConversation
             }
@@ -79,6 +92,7 @@ class RoomConversationRepository(
                 conversationId = targetConversation.id,
                 author = MessageAuthor.USER,
                 content = trimmedContent,
+                attachedImageUris = normalizedImageUris,
                 status = MessageStatus.COMPLETE,
                 createdAtEpochMillis = timestamp,
                 updatedAtEpochMillis = timestamp,

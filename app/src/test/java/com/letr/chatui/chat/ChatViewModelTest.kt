@@ -38,8 +38,11 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import java.io.IOException
 
+@RunWith(RobolectricTestRunner::class)
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChatViewModelTest {
     private val dispatcher = StandardTestDispatcher()
@@ -320,9 +323,9 @@ class ChatViewModelTest {
         val assistantMessage = repository.messagesFlow(conversationId).value.last()
         assertEquals("Almost", assistantMessage.content)
         assertEquals(MessageStatus.FAILED, assistantMessage.status)
-        assertEquals("Request timed out. Check your connection and retry.", assistantMessage.failureReason)
+        assertEquals("请求超时。请检查网络连接后重试。", assistantMessage.failureReason)
         assertEquals(
-            ChatGenerationState.Failed(OpenAiChatCompletionFailure.Unknown("Request timed out. Check your connection and retry.")),
+            ChatGenerationState.Failed(OpenAiChatCompletionFailure.Unknown("请求超时。请检查网络连接后重试。")),
             viewModel.uiState.value.generationState,
         )
 
@@ -357,7 +360,7 @@ class ChatViewModelTest {
 
         val conversationId = repository.selectedConversationIdFlow.value!!
         assertEquals(
-            "Unauthorized (401). Update your API key in Settings, save, and retry.",
+            "未授权 (401)。请在设置中更新 API 密钥，保存后重试。",
             repository.messagesFlow(conversationId).value.last().failureReason,
         )
 
@@ -367,7 +370,7 @@ class ChatViewModelTest {
         advanceUntilIdle()
 
         assertEquals(
-            "Rate limited (429). Wait 8s and retry.",
+            "请求过于频繁 (429)。请等待 8 秒后重试。",
             repository.messagesFlow(conversationId).value.last().failureReason,
         )
     }
@@ -394,7 +397,7 @@ class ChatViewModelTest {
 
         val conversationId = repository.selectedConversationIdFlow.value!!
         assertEquals(
-            "Malformed stream response: Stream interrupted before terminal event. Retry. If it persists, verify provider compatibility.",
+            "流式响应格式错误：Stream interrupted before terminal event. 请重试；如果问题持续，请检查服务提供方是否兼容。",
             repository.messagesFlow(conversationId).value.last().failureReason,
         )
     }
@@ -573,7 +576,7 @@ class ChatViewModelTest {
         val conversationId = repository.selectedConversationIdFlow.value!!
         val assistantMessage = repository.messagesFlow(conversationId).value.last()
         assertEquals(MessageStatus.FAILED, assistantMessage.status)
-        assertEquals("Request failed: collector boom. Retry.", assistantMessage.failureReason)
+        assertEquals("请求失败：collector boom。请重试。", assistantMessage.failureReason)
         assertFalse(viewModel.uiState.value.hasActiveGeneration)
     }
 
@@ -816,13 +819,20 @@ class ChatViewModelTest {
             return Conversation(conversationId, firstUserMessage.trim(), conversationCounter.toLong(), conversationCounter.toLong())
         }
 
-        override suspend fun sendMessage(conversationId: ConversationId?, content: String): ConversationId {
+        override suspend fun sendMessage(
+            conversationId: ConversationId?,
+            content: String,
+            attachedImageUris: List<String>,
+        ): ConversationId {
             val trimmed = content.trim()
             val targetConversationId = conversationId ?: ConversationId("conversation-${++conversationCounter}").also { createdId ->
                 conversationsFlow.value = conversationsFlow.value + Conversation(createdId, trimmed, conversationCounter.toLong(), conversationCounter.toLong())
             }
             val updatedMessages = messagesFlow(targetConversationId).value.toMutableList().apply {
-                add(buildUserMessage(targetConversationId, "user-${++userMessageCounter}", trimmed, userMessageCounter.toLong()))
+                add(
+                    buildUserMessage(targetConversationId, "user-${++userMessageCounter}", trimmed, userMessageCounter.toLong())
+                        .copy(attachedImageUris = attachedImageUris)
+                )
             }
             messagesFlow(targetConversationId).value = updatedMessages
             draftFlow(targetConversationId).value = null

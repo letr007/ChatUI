@@ -5,6 +5,7 @@ data class Message(
     val conversationId: ConversationId,
     val author: MessageAuthor,
     val content: String,
+    val attachedImageUris: List<String> = emptyList(),
     val status: MessageStatus,
     val createdAtEpochMillis: Long,
     val updatedAtEpochMillis: Long,

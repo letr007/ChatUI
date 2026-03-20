@@ -41,6 +41,7 @@ data class ChatUiState(
     val selectedConversationId: ConversationId? = null,
     val messages: List<Message> = emptyList(),
     val composerText: String = "",
+    val pendingAttachmentUris: List<String> = emptyList(),
     val hasActiveGeneration: Boolean = false,
     val isGenerationLockedByAnotherConversation: Boolean = false,
     val sendEnabled: Boolean = false,
@@ -54,6 +55,7 @@ private data class ChatBaseState(
     val selectedConversationId: ConversationId?,
     val messages: List<Message>,
     val composerText: String,
+    val pendingAttachmentUris: List<String>,
     val hasPersistedActiveGeneration: Boolean,
     val configFailure: OpenAiChatCompletionFailure?,
 )
@@ -95,6 +97,7 @@ class ChatViewModel(
             observeDraftTextOrEmpty(conversationId)
         }
         .stateIn(viewModelScope, SharingStarted.Eagerly, "")
+    private val pendingAttachmentUris = MutableStateFlow<List<String>>(emptyList())
 
     private val activeConfig = activeChatConfigSource.observeActiveConfig()
         .stateIn(
@@ -119,16 +122,20 @@ class ChatViewModel(
     }.stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
     private val baseState = combine(
+        combine(activeConfig, hasPersistedActiveGeneration) { config, persistedActive ->
+            config to persistedActive
+        },
         selectedConversationId,
         messages,
         composerText,
-        activeConfig,
-        hasPersistedActiveGeneration,
-    ) { selectedId, messageList, composer, config, persistedActive ->
+        pendingAttachmentUris,
+    ) { configAndGeneration, selectedId, messageList, composer, attachments ->
+        val (config, persistedActive) = configAndGeneration
         ChatBaseState(
             selectedConversationId = selectedId,
             messages = messageList,
             composerText = composer,
+            pendingAttachmentUris = attachments,
             hasPersistedActiveGeneration = persistedActive,
             configFailure = config.validationFailureOrNull(),
         )
@@ -139,6 +146,7 @@ class ChatViewModel(
             selectedConversationId = null,
             messages = emptyList(),
             composerText = "",
+            pendingAttachmentUris = emptyList(),
             hasPersistedActiveGeneration = false,
             configFailure = null,
         ),
@@ -152,6 +160,7 @@ class ChatViewModel(
         val selectedId = baseState.selectedConversationId
         val messageList = baseState.messages
         val composerText = baseState.composerText
+        val pendingAttachmentUris = baseState.pendingAttachmentUris
         val configFailure = baseState.configFailure
         val hasInFlightGeneration = inFlight != null
         val isGenerationLockedByAnotherConversation = inFlight?.conversationId != null && inFlight.conversationId != selectedId
@@ -167,9 +176,12 @@ class ChatViewModel(
             selectedConversationId = selectedId,
             messages = messageList,
             composerText = composerText,
+            pendingAttachmentUris = pendingAttachmentUris,
             hasActiveGeneration = hasAnyActiveGeneration,
             isGenerationLockedByAnotherConversation = isGenerationLockedByAnotherConversation,
-            sendEnabled = composerText.isNotBlank() && !hasAnyActiveGeneration && configFailure == null,
+            sendEnabled = (composerText.isNotBlank() || pendingAttachmentUris.isNotEmpty()) &&
+                !hasAnyActiveGeneration &&
+                configFailure == null,
             canStopGeneration = inFlight?.conversationId == selectedId,
             canRegenerate = selectedId != null && !hasAnyActiveGeneration && configFailure == null && canRegenerate(messageList),
             generationState = generationState,
@@ -187,10 +199,20 @@ class ChatViewModel(
                     pendingComposerText.value = ""
                 }
                 selectedConversationDraftOverride.value = null
+                pendingAttachmentUris.value = emptyList()
                 transientGenerationOverride.value = null
                 initialized = true
             }
         }
+    }
+
+    fun onAttachmentUrisSelected(uriStrings: List<String>) {
+        if (uriStrings.isEmpty()) return
+        pendingAttachmentUris.value = (pendingAttachmentUris.value + uriStrings).distinct()
+    }
+
+    fun removePendingAttachment(uriString: String) {
+        pendingAttachmentUris.value = pendingAttachmentUris.value.filterNot { it == uriString }
     }
 
     fun onComposerTextChanged(text: String) {
@@ -240,9 +262,10 @@ class ChatViewModel(
 
     fun submitPrompt() {
         val composerText = uiState.value.composerText
+        val composerAttachments = uiState.value.pendingAttachmentUris
         val currentConversationId = uiState.value.selectedConversationId
         val configFailure = uiState.value.configFailure
-        if (composerText.isBlank()) {
+        if (composerText.isBlank() && composerAttachments.isEmpty()) {
             return
         }
         if (uiState.value.hasActiveGeneration) {
@@ -260,9 +283,14 @@ class ChatViewModel(
         viewModelScope.launch {
             try {
                 transientGenerationOverride.value = null
-                val conversationId = conversationRepository.sendMessage(currentConversationId, composerText)
+                val conversationId = conversationRepository.sendMessage(
+                    conversationId = currentConversationId,
+                    content = composerText,
+                    attachedImageUris = composerAttachments,
+                )
                 pendingComposerText.value = ""
                 selectedConversationDraftOverride.value = ""
+                pendingAttachmentUris.value = emptyList()
                 val messagesForRemote = conversationRepository.getMessages(conversationId)
                 startStreaming(
                     conversationId = conversationId,

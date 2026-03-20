@@ -609,12 +609,6 @@ private fun MessageBubble(
         else -> MaterialTheme.colorScheme.onSurface
     }
     val clipboardManager = LocalClipboardManager.current
-    val shouldRenderAssistantMarkdown = message.author == MessageAuthor.ASSISTANT &&
-        message.status == MessageStatus.COMPLETE &&
-        messageLooksLikeStructuredMarkdown(message.content)
-    val markdownDocument = remember(message.content, shouldRenderAssistantMarkdown) {
-        if (shouldRenderAssistantMarkdown) AssistantMarkdownParser.parse(message.content) else null
-    }
     if (message.author == MessageAuthor.ASSISTANT && message.status == MessageStatus.PENDING) {
         PendingAssistantBubble()
         return
@@ -664,6 +658,16 @@ private fun MessageBubble(
         message.content.take(animatedVisibleLength.coerceIn(0, message.content.length))
     } else {
         message.content
+    }
+    val shouldRenderAssistantMarkdown = message.author == MessageAuthor.ASSISTANT &&
+        message.status != MessageStatus.PENDING &&
+        messageLooksLikeStructuredMarkdown(animatedAssistantText)
+    val markdownDocument = remember(animatedAssistantText, shouldRenderAssistantMarkdown) {
+        if (shouldRenderAssistantMarkdown) {
+            AssistantMarkdownParser.parse(animatedAssistantText)
+        } else {
+            null
+        }
     }
 
     Column(

@@ -69,6 +69,17 @@ class RealOpenAiChatCompletionProviderAdapter(
         )
     }
 
+    override suspend fun listModels(): OpenAiModelsResponseDto {
+        logDebug(CHAT_UI_HTTP_TAG, "list models baseUrl=${providerConfig.baseUrl}")
+        okHttpClient.newCall(buildModelsRequest()).execute().use { response ->
+            logDebug(CHAT_UI_HTTP_TAG, "list models response code=${response.code}")
+            response.throwIfUnsuccessful()
+            val body = response.body?.string()
+                ?: throw OpenAiChatCompletionProtocolException("Models response body was empty.")
+            return parseModelsResponse(body)
+        }
+    }
+
     private fun buildRequest(request: OpenAiChatCompletionRequestDto): Request {
         return Request.Builder()
             .url(providerConfig.chatCompletionsUrl())
@@ -76,6 +87,15 @@ class RealOpenAiChatCompletionProviderAdapter(
             .header("Content-Type", "application/json")
             .header("Accept", if (request.stream) "text/event-stream" else "application/json")
             .post(request.toJson().toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+    }
+
+    private fun buildModelsRequest(): Request {
+        return Request.Builder()
+            .url(providerConfig.modelsUrl())
+            .header("Authorization", "Bearer ${providerConfig.apiKey.orEmpty()}")
+            .header("Accept", "application/json")
+            .get()
             .build()
     }
 }
@@ -190,6 +210,18 @@ private fun OpenAiProviderConfig.chatCompletionsUrl(): String {
     }.toString()
 }
 
+private fun OpenAiProviderConfig.modelsUrl(): String {
+    val normalizedBaseUrl = baseUrl.trim().removeSuffix("/")
+    val resolved = if (normalizedBaseUrl.endsWith("/v1")) {
+        "$normalizedBaseUrl/models"
+    } else {
+        "$normalizedBaseUrl/v1/models"
+    }
+    return checkNotNull(resolved.toHttpUrlOrNull()) {
+        "Invalid models URL: $resolved"
+    }.toString()
+}
+
 private fun OpenAiChatCompletionRequestDto.toJson(): String {
     val buffer = Buffer()
     val writer = JsonWriter.of(buffer)
@@ -271,6 +303,33 @@ private fun parseCompletionResponse(payload: String): OpenAiChatCompletionRespon
     }
 }
 
+private fun parseModelsResponse(payload: String): OpenAiModelsResponseDto {
+    val reader = JsonReader.of(Buffer().writeUtf8(payload))
+    try {
+        val models = mutableListOf<OpenAiModelDto>()
+        reader.beginObject()
+        while (reader.hasNext()) {
+            when (reader.nextName()) {
+                "data" -> {
+                    reader.beginArray()
+                    while (reader.hasNext()) {
+                        models += reader.readModel()
+                    }
+                    reader.endArray()
+                }
+
+                else -> reader.skipValue()
+            }
+        }
+        reader.endObject()
+        return OpenAiModelsResponseDto(data = models)
+    } catch (exception: Exception) {
+        throw OpenAiChatCompletionProtocolException("Malformed models response.", exception)
+    } finally {
+        reader.close()
+    }
+}
+
 private fun JsonReader.readResponseChoice(): OpenAiChatCompletionChoiceDto {
     var index = 0
     var finishReason: String? = null
@@ -309,6 +368,23 @@ private fun JsonReader.readAssistantMessage(): OpenAiAssistantMessageDto {
     endObject()
 
     return OpenAiAssistantMessageDto(role = role, content = content)
+}
+
+private fun JsonReader.readModel(): OpenAiModelDto {
+    var id: String? = null
+
+    beginObject()
+    while (hasNext()) {
+        when (nextName()) {
+            "id" -> id = nextNullableString()
+            else -> skipValue()
+        }
+    }
+    endObject()
+
+    return OpenAiModelDto(
+        id = checkNotNull(id) { "Model id was missing." },
+    )
 }
 
 private fun JsonReader.nextNullableString(): String? {

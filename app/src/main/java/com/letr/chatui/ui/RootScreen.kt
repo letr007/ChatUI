@@ -22,6 +22,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -115,6 +116,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.Dp
@@ -171,6 +173,8 @@ fun RootScreen(
     onSettingsApiBaseUrlChanged: (String) -> Unit,
     onSettingsModelIdChanged: (String) -> Unit,
     onSettingsApiKeyChanged: (String) -> Unit,
+    onFetchModels: () -> Unit,
+    onImportModelId: (String) -> Unit,
     onSaveSettings: () -> Unit,
     onClearPersistedApiKey: () -> Unit,
 ) {
@@ -205,6 +209,7 @@ fun RootScreen(
                 if (appShellController.currentDestination == AppDestination.SETTINGS) {
                     RootTopBar(
                         destination = appShellController.currentDestination,
+                        currentModelId = chatUiState.currentModelId,
                         onHistoryClick = appShellController::openHistoryDrawer,
                         onSettingsClick = appShellController::navigateToSettings,
                         onBackToChatClick = appShellController::navigateToChat,
@@ -243,6 +248,8 @@ fun RootScreen(
                             onApiBaseUrlChanged = onSettingsApiBaseUrlChanged,
                             onModelIdChanged = onSettingsModelIdChanged,
                             onApiKeyInputChanged = onSettingsApiKeyChanged,
+                            onFetchModels = onFetchModels,
+                            onImportModelId = onImportModelId,
                             onSave = onSaveSettings,
                             onClearApiKey = onClearPersistedApiKey,
                         )
@@ -252,6 +259,7 @@ fun RootScreen(
                 if (appShellController.currentDestination == AppDestination.CHAT) {
                     RootTopBar(
                         destination = appShellController.currentDestination,
+                        currentModelId = chatUiState.currentModelId,
                         onHistoryClick = appShellController::openHistoryDrawer,
                         onSettingsClick = appShellController::navigateToSettings,
                         onBackToChatClick = appShellController::navigateToChat,
@@ -272,6 +280,7 @@ fun RootScreen(
 @Composable
 private fun RootTopBar(
     destination: AppDestination,
+    currentModelId: String,
     onHistoryClick: () -> Unit,
     onSettingsClick: () -> Unit,
     onBackToChatClick: () -> Unit,
@@ -297,11 +306,22 @@ private fun RootTopBar(
         ) {
             when (destination) {
                 AppDestination.CHAT -> {
-                    FloatingTopActionButton(onClick = onHistoryClick) {
-                        Icon(
-                            imageVector = Icons.Rounded.Menu,
-                            contentDescription = stringResource(R.string.history_drawer_title),
-                        )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(spacing.small),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        FloatingTopActionButton(onClick = onHistoryClick) {
+                            Icon(
+                                imageVector = Icons.Rounded.Menu,
+                                contentDescription = stringResource(R.string.history_drawer_title),
+                            )
+                        }
+                        if (currentModelId.isNotBlank()) {
+                            FloatingTopModelChip(
+                                modelId = currentModelId,
+                                onClick = onSettingsClick,
+                            )
+                        }
                     }
                 }
 
@@ -394,6 +414,38 @@ private fun FloatingTopActionButton(
                 contentColor = MaterialTheme.colorScheme.onSurface,
             ),
             content = content,
+        )
+    }
+}
+
+@Composable
+private fun FloatingTopModelChip(
+    modelId: String,
+    onClick: () -> Unit,
+) {
+    val spacing = LocalChatUiSpacing
+    val corners = LocalChatUiCorners
+
+    Surface(
+        modifier = Modifier
+            .clip(corners.large)
+            .clickable(onClick = onClick),
+        shape = corners.large,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
+        border = androidx.compose.foundation.BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.06f),
+        ),
+    ) {
+        Text(
+            text = modelId,
+            modifier = Modifier
+                .widthIn(max = 180.dp)
+                .padding(horizontal = spacing.medium, vertical = spacing.small),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }

@@ -134,6 +134,27 @@ class ChatViewModelTest {
     }
 
     @Test
+    fun `ui state exposes current model id from active config`() = runTest(dispatcher) {
+        val repository = FakeConversationRepository()
+        val viewModel = createViewModel(
+            repository = repository,
+            streamingRepository = FakeAssistantStreamingRepository(repository),
+            configSource = FakeActiveChatConfigSource(
+                initialConfig = ActiveChatRuntimeConfig(
+                    apiBaseUrl = "https://api.example.com/v1",
+                    apiKey = "sk-test",
+                    modelId = "gpt-5.4",
+                )
+            ),
+            remoteClient = FakeRemoteClient(),
+        )
+
+        advanceUntilIdle()
+
+        assertEquals("gpt-5.4", viewModel.uiState.value.currentModelId)
+    }
+
+    @Test
     fun `switching selected conversation restores each conversation draft`() = runTest(dispatcher) {
         val firstId = ConversationId("conversation-1")
         val secondId = ConversationId("conversation-2")

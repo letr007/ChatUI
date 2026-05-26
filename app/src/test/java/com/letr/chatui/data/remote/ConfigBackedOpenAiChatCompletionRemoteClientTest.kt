@@ -15,6 +15,7 @@ import com.letr.chatui.network.chatcompletions.OpenAiChatCompletionResponseDto
 import com.letr.chatui.network.chatcompletions.OpenAiChatCompletionStreamEvent
 import com.letr.chatui.network.chatcompletions.OpenAiChatCompletionStreamingSession
 import com.letr.chatui.network.chatcompletions.OpenAiChatMessageDto
+import com.letr.chatui.network.chatcompletions.OpenAiModelsResponseDto
 import com.letr.chatui.network.chatcompletions.OpenAiProviderConfig
 import com.letr.chatui.network.chatcompletions.OpenAiChatMessageContentPartDto
 import kotlinx.coroutines.async
@@ -221,6 +222,10 @@ private class FakeProviderAdapter(
 
     override fun streamChatCompletion(request: OpenAiChatCompletionRequestDto): OpenAiChatCompletionStreamingSession {
         return onStream?.invoke(request) ?: FakeStreamingSession(streamedEvents = streamEvents)
+    }
+
+    override suspend fun listModels(): OpenAiModelsResponseDto {
+        return OpenAiModelsResponseDto(emptyList())
     }
 }
 

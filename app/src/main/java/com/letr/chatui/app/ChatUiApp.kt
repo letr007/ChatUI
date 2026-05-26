@@ -18,6 +18,7 @@ import com.letr.chatui.persistence.ChatUiDatabase
 import com.letr.chatui.persistence.RoomLocalConversationDataSource
 import com.letr.chatui.settings.DataStoreNonSensitiveSettingsLocalDataSource
 import com.letr.chatui.settings.EncryptedSecretSettingsLocalDataSource
+import com.letr.chatui.settings.RealOpenAiModelsCatalogClient
 import com.letr.chatui.settings.SettingsViewModel
 import com.letr.chatui.settings.SettingsStorageFactory
 import com.letr.chatui.ui.RootScreen
@@ -44,16 +45,23 @@ fun ChatUiApp() {
             ),
         )
     }
-    val remoteClient = remember(settingsRepository) {
+    val okHttpClient = remember { OkHttpClient() }
+    val adapterFactory = remember(okHttpClient) {
+        RealOpenAiChatCompletionProviderAdapterFactory(
+            okHttpClient = okHttpClient,
+        )
+    }
+    val remoteClient = remember(settingsRepository, adapterFactory) {
         ConfigBackedOpenAiChatCompletionRemoteClient(
             activeChatConfigSource = settingsRepository,
             requestFactory = com.letr.chatui.data.remote.OpenAiChatCompletionRequestFactory(
                 contentResolver = context.contentResolver,
             ),
-            adapterFactory = RealOpenAiChatCompletionProviderAdapterFactory(
-                okHttpClient = OkHttpClient(),
-            ),
+            adapterFactory = adapterFactory,
         )
+    }
+    val modelsCatalogClient = remember(adapterFactory) {
+        RealOpenAiModelsCatalogClient(adapterFactory = adapterFactory)
     }
     val chatViewModel: ChatViewModel = viewModel(
         factory = remember(conversationRepository, settingsRepository, remoteClient, context) {
@@ -66,8 +74,8 @@ fun ChatUiApp() {
         }
     )
     val settingsViewModel: SettingsViewModel = viewModel(
-        factory = remember(settingsRepository, context) {
-            settingsViewModelFactory(settingsRepository, context.resources)
+        factory = remember(settingsRepository, modelsCatalogClient, context) {
+            settingsViewModelFactory(settingsRepository, modelsCatalogClient, context.resources)
         }
     )
     val appShellController = rememberAppShellController()
@@ -110,6 +118,8 @@ fun ChatUiApp() {
             onSettingsApiBaseUrlChanged = settingsViewModel::onApiBaseUrlChanged,
             onSettingsModelIdChanged = settingsViewModel::onModelIdChanged,
             onSettingsApiKeyChanged = settingsViewModel::onApiKeyInputChanged,
+            onFetchModels = settingsViewModel::fetchModels,
+            onImportModelId = settingsViewModel::importModelId,
             onSaveSettings = settingsViewModel::saveSettings,
             onClearPersistedApiKey = settingsViewModel::clearPersistedApiKey,
         )
@@ -142,6 +152,7 @@ private fun chatViewModelFactory(
 
 private fun settingsViewModelFactory(
     settingsRepository: RealSettingsRepository,
+    modelsCatalogClient: RealOpenAiModelsCatalogClient,
     resources: android.content.res.Resources,
 ): ViewModelProvider.Factory {
     return object : ViewModelProvider.Factory {
@@ -154,6 +165,7 @@ private fun settingsViewModelFactory(
             return SettingsViewModel(
                 settingsRepository = settingsRepository,
                 secretSettingsRepository = settingsRepository,
+                modelsCatalogClient = modelsCatalogClient,
                 resources = resources,
             ) as T
         }

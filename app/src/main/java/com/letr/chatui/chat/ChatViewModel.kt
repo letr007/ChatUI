@@ -41,6 +41,7 @@ import kotlin.coroutines.cancellation.CancellationException
 data class ChatUiState(
     val selectedConversationId: ConversationId? = null,
     val messages: List<Message> = emptyList(),
+    val currentModelId: String = "",
     val composerText: String = "",
     val pendingAttachmentUris: List<String> = emptyList(),
     val hasActiveGeneration: Boolean = false,
@@ -55,6 +56,7 @@ data class ChatUiState(
 private data class ChatBaseState(
     val selectedConversationId: ConversationId?,
     val messages: List<Message>,
+    val currentModelId: String,
     val composerText: String,
     val pendingAttachmentUris: List<String>,
     val hasPersistedActiveGeneration: Boolean,
@@ -139,6 +141,7 @@ class ChatViewModel(
         ChatBaseState(
             selectedConversationId = selectedId,
             messages = messageList,
+            currentModelId = config.modelId,
             composerText = composer,
             pendingAttachmentUris = attachments,
             hasPersistedActiveGeneration = persistedActive,
@@ -150,6 +153,7 @@ class ChatViewModel(
         ChatBaseState(
             selectedConversationId = null,
             messages = emptyList(),
+            currentModelId = "",
             composerText = "",
             pendingAttachmentUris = emptyList(),
             hasPersistedActiveGeneration = false,
@@ -164,6 +168,7 @@ class ChatViewModel(
     ) { baseState, transientOverride, inFlight ->
         val selectedId = baseState.selectedConversationId
         val messageList = baseState.messages
+        val currentModelId = baseState.currentModelId
         val composerText = baseState.composerText
         val pendingAttachmentUris = baseState.pendingAttachmentUris
         val configFailure = baseState.configFailure
@@ -180,6 +185,7 @@ class ChatViewModel(
         ChatUiState(
             selectedConversationId = selectedId,
             messages = messageList,
+            currentModelId = currentModelId,
             composerText = composerText,
             pendingAttachmentUris = pendingAttachmentUris,
             hasActiveGeneration = hasAnyActiveGeneration,

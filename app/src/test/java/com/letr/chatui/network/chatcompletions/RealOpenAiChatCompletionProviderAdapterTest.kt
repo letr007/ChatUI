@@ -210,6 +210,26 @@ class RealOpenAiChatCompletionProviderAdapterTest {
     }
 
     @Test
+    fun `list models builds request from provider config`() = runBlocking {
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody(
+                    """
+                    {"data":[{"id":"gpt-4o-mini"},{"id":"gpt-5.4"}]}
+                    """.trimIndent()
+                )
+        )
+
+        val response = createAdapter().listModels()
+
+        val recorded = server.takeRequest()
+        assertEquals("/v1/models", recorded.path)
+        assertEquals("Bearer secret-key", recorded.getHeader("Authorization"))
+        assertEquals(listOf("gpt-4o-mini", "gpt-5.4"), response.data.map { it.id })
+    }
+
+    @Test
     fun `http and timeout failures map through contract mapper`() {
         assertEquals(
             OpenAiChatCompletionFailure.Unauthorized,

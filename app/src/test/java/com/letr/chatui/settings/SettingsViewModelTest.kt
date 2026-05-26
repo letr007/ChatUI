@@ -25,6 +25,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
+import java.io.IOException
 
 @RunWith(RobolectricTestRunner::class)
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -54,7 +55,7 @@ class SettingsViewModelTest {
             initialApiKey = "sk-secret-1234",
         )
 
-        val viewModel = SettingsViewModel(settingsRepository, settingsRepository, resources)
+        val viewModel = SettingsViewModel(settingsRepository, settingsRepository, FakeModelsCatalogClient(), resources)
         advanceUntilIdle()
 
         assertEquals("https://api.example.com/v1", viewModel.uiState.value.apiBaseUrl)
@@ -67,7 +68,7 @@ class SettingsViewModelTest {
     @Test
     fun `saving valid settings persists non sensitive values and api key`() = runTest(dispatcher) {
         val settingsRepository = FakeSettingsRepository()
-        val viewModel = SettingsViewModel(settingsRepository, settingsRepository, resources)
+        val viewModel = SettingsViewModel(settingsRepository, settingsRepository, FakeModelsCatalogClient(), resources)
         advanceUntilIdle()
 
         viewModel.onApiBaseUrlChanged("https://api.example.com/v1")
@@ -97,7 +98,7 @@ class SettingsViewModelTest {
     @Test
     fun `missing api key blocks save when none is stored`() = runTest(dispatcher) {
         val settingsRepository = FakeSettingsRepository()
-        val viewModel = SettingsViewModel(settingsRepository, settingsRepository, resources)
+        val viewModel = SettingsViewModel(settingsRepository, settingsRepository, FakeModelsCatalogClient(), resources)
         advanceUntilIdle()
 
         viewModel.onApiBaseUrlChanged("https://api.example.com/v1")
@@ -120,7 +121,7 @@ class SettingsViewModelTest {
     @Test
     fun `invalid base url save attempt returns deterministic recovery feedback`() = runTest(dispatcher) {
         val settingsRepository = FakeSettingsRepository()
-        val viewModel = SettingsViewModel(settingsRepository, settingsRepository, resources)
+        val viewModel = SettingsViewModel(settingsRepository, settingsRepository, FakeModelsCatalogClient(), resources)
         advanceUntilIdle()
 
         viewModel.onApiBaseUrlChanged("not-a-url")
@@ -149,7 +150,7 @@ class SettingsViewModelTest {
             ),
             initialApiKey = "sk-secret-1234",
         )
-        val viewModel = SettingsViewModel(settingsRepository, settingsRepository, resources)
+        val viewModel = SettingsViewModel(settingsRepository, settingsRepository, FakeModelsCatalogClient(), resources)
         advanceUntilIdle()
 
         assertTrue(viewModel.uiState.value.canClearApiKey)
@@ -161,6 +162,53 @@ class SettingsViewModelTest {
         assertTrue(viewModel.uiState.value.validationIssues.contains(SettingsValidationIssue.MissingApiKey))
         assertEquals(resources.getString(R.string.settings_cleared_feedback), viewModel.uiState.value.feedback?.message)
         assertEquals(null, settingsRepository.apiKey)
+    }
+
+    @Test
+    fun `fetching models imports selectable ids into ui state`() = runTest(dispatcher) {
+        val settingsRepository = FakeSettingsRepository(
+            initialSettings = ChatSettings(
+                apiBaseUrl = "https://api.example.com/v1",
+                modelId = "gpt-4o-mini",
+                apiKeyState = PersistedApiKeyState.Persisted(maskedValue = "••••1234"),
+            ),
+            initialApiKey = "sk-secret-1234",
+        )
+        val modelsCatalogClient = FakeModelsCatalogClient(
+            modelIds = listOf("gpt-5.4", "gpt-4.1"),
+        )
+        val viewModel = SettingsViewModel(settingsRepository, settingsRepository, modelsCatalogClient, resources)
+        advanceUntilIdle()
+
+        viewModel.fetchModels()
+        advanceUntilIdle()
+
+        assertEquals(listOf("gpt-4.1", "gpt-5.4"), viewModel.uiState.value.availableModelIds)
+        assertEquals(resources.getString(R.string.settings_models_loaded_feedback, 2), viewModel.uiState.value.feedback?.message)
+
+        viewModel.importModelId("gpt-5.4")
+        advanceUntilIdle()
+
+        assertEquals("gpt-5.4", viewModel.uiState.value.modelId)
+        assertEquals(resources.getString(R.string.settings_model_imported_feedback, "gpt-5.4"), viewModel.uiState.value.feedback?.message)
+    }
+
+    @Test
+    fun `fetching models without key shows deterministic error`() = runTest(dispatcher) {
+        val settingsRepository = FakeSettingsRepository(
+            initialSettings = ChatSettings(apiBaseUrl = "https://api.example.com/v1", modelId = "gpt-4o-mini"),
+        )
+        val viewModel = SettingsViewModel(settingsRepository, settingsRepository, FakeModelsCatalogClient(), resources)
+        advanceUntilIdle()
+
+        viewModel.fetchModels()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.feedback?.isError == true)
+        assertEquals(
+            resources.getString(R.string.openai_failure_message_missing_configuration, resources.getString(R.string.openai_field_api_key)),
+            viewModel.uiState.value.feedback?.message,
+        )
     }
 }
 
@@ -214,5 +262,15 @@ private class FakeSettingsRepository(
     override suspend fun clearApiKey() {
         apiKey = null
         settingsFlow.value = settingsFlow.value.copy(apiKeyState = PersistedApiKeyState.Missing)
+    }
+}
+
+private class FakeModelsCatalogClient(
+    private val modelIds: List<String> = emptyList(),
+    private val error: Throwable? = null,
+) : OpenAiModelsCatalogClient {
+    override suspend fun fetchModels(baseUrl: String, apiKey: String): List<String> {
+        error?.let { throw it }
+        return modelIds
     }
 }

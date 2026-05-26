@@ -9,6 +9,13 @@ import com.letr.chatui.data.model.NonSensitiveChatSettings
 import com.letr.chatui.data.model.PersistedApiKeyState
 import com.letr.chatui.data.repository.SecretSettingsRepository
 import com.letr.chatui.data.repository.SettingsRepository
+import com.letr.chatui.network.chatcompletions.OpenAiChatCompletionErrorMapper
+import com.letr.chatui.network.chatcompletions.OpenAiChatCompletionFailure
+import com.letr.chatui.network.chatcompletions.OpenAiChatCompletionHttpException
+import com.letr.chatui.network.chatcompletions.OpenAiChatCompletionProtocolException
+import com.letr.chatui.network.chatcompletions.OpenAiProviderConfig
+import com.letr.chatui.network.chatcompletions.OpenAiProviderConfigValidator
+import com.letr.chatui.network.chatcompletions.toUiMessage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,6 +37,8 @@ data class SettingsUiState(
     val hasUnsavedChanges: Boolean = false,
     val canSave: Boolean = false,
     val canClearApiKey: Boolean = false,
+    val availableModelIds: List<String> = emptyList(),
+    val isFetchingModels: Boolean = false,
     val feedback: SettingsFeedback? = null,
 )
 
@@ -42,6 +51,7 @@ private data class SavedSettingsSnapshot(
 class SettingsViewModel(
     private val settingsRepository: SettingsRepository,
     private val secretSettingsRepository: SecretSettingsRepository,
+    private val modelsCatalogClient: OpenAiModelsCatalogClient,
     private val resources: Resources,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -67,6 +77,84 @@ class SettingsViewModel(
 
     fun onApiKeyInputChanged(value: String) {
         updateForm(apiKeyInput = value)
+    }
+
+    fun fetchModels() {
+        val state = uiState.value
+        if (state.isSaving || state.isFetchingModels) {
+            return
+        }
+
+        viewModelScope.launch {
+            val apiKey = state.apiKeyInput.trim().ifEmpty { secretSettingsRepository.getApiKey().orEmpty() }
+            val validationFailure = OpenAiProviderConfigValidator.validateForModelsList(
+                OpenAiProviderConfig(
+                    baseUrl = state.apiBaseUrl,
+                    apiKey = apiKey.ifBlank { null },
+                    modelId = "",
+                )
+            )
+            if (validationFailure != null) {
+                _uiState.update {
+                    it.copy(
+                        isFetchingModels = false,
+                        feedback = SettingsFeedback(
+                            message = validationFailure.toUiMessage(resources),
+                            isError = true,
+                        ),
+                    )
+                }
+                return@launch
+            }
+
+            _uiState.update { it.copy(isFetchingModels = true, feedback = null) }
+            try {
+                val modelIds = modelsCatalogClient.fetchModels(
+                    baseUrl = state.apiBaseUrl,
+                    apiKey = apiKey,
+                ).map { it.trim() }
+                    .filter { it.isNotEmpty() }
+                    .distinct()
+                    .sorted()
+                _uiState.update {
+                    it.copy(
+                        availableModelIds = modelIds,
+                        isFetchingModels = false,
+                        feedback = SettingsFeedback(
+                            message = if (modelIds.isEmpty()) {
+                                resources.getString(R.string.settings_models_empty_feedback)
+                            } else {
+                                resources.getString(R.string.settings_models_loaded_feedback, modelIds.size)
+                            },
+                            isError = false,
+                        ),
+                    )
+                }
+            } catch (throwable: Throwable) {
+                val failure = throwable.toModelsFetchFailure()
+                _uiState.update {
+                    it.copy(
+                        isFetchingModels = false,
+                        feedback = SettingsFeedback(
+                            message = failure.toUiMessage(resources),
+                            isError = true,
+                        ),
+                    )
+                }
+            }
+        }
+    }
+
+    fun importModelId(modelId: String) {
+        updateForm(modelId = modelId)
+        _uiState.update {
+            it.copy(
+                feedback = SettingsFeedback(
+                    message = resources.getString(R.string.settings_model_imported_feedback, modelId),
+                    isError = false,
+                ),
+            )
+        }
     }
 
     fun saveSettings() {
@@ -204,6 +292,8 @@ class SettingsViewModel(
         modelId: String = uiState.value.modelId,
         apiKeyInput: String = uiState.value.apiKeyInput,
     ) {
+        val shouldClearImportedModels =
+            apiBaseUrl != uiState.value.apiBaseUrl || apiKeyInput != uiState.value.apiKeyInput
         _uiState.update {
             buildUiState(
                 apiBaseUrl = apiBaseUrl,
@@ -212,6 +302,8 @@ class SettingsViewModel(
                 persistedApiKeyState = it.persistedApiKeyState,
                 isSaving = false,
                 feedback = null,
+            ).copy(
+                availableModelIds = if (shouldClearImportedModels) emptyList() else it.availableModelIds,
             )
         }
     }
@@ -265,6 +357,8 @@ class SettingsViewModel(
             hasUnsavedChanges = hasUnsavedChanges,
             canSave = !isSaving && hasUnsavedChanges && validationIssues.isEmpty(),
             canClearApiKey = !isSaving && persistedApiKeyState is PersistedApiKeyState.Persisted,
+            availableModelIds = uiState.value.availableModelIds,
+            isFetchingModels = uiState.value.isFetchingModels,
             feedback = feedback,
         )
     }
@@ -312,5 +406,17 @@ class SettingsViewModel(
             null -> resources.getString(R.string.settings_feedback_fix_before_saving)
         }
         return SettingsFeedback(message = message, isError = true)
+    }
+
+    private fun Throwable.toModelsFetchFailure(): OpenAiChatCompletionFailure {
+        return when (this) {
+            is OpenAiChatCompletionHttpException -> OpenAiChatCompletionErrorMapper.fromHttpStatus(
+                statusCode = statusCode,
+                retryAfterSeconds = retryAfterSeconds,
+            )
+
+            is OpenAiChatCompletionProtocolException -> OpenAiChatCompletionFailure.Protocol(message ?: "Malformed models response.")
+            else -> OpenAiChatCompletionErrorMapper.fromThrowable(this)
+        }
     }
 }

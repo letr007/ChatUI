@@ -63,6 +63,14 @@ data class OpenAiChatCompletionChunkChoiceDto(
     val finishReason: String?,
 )
 
+data class OpenAiModelDto(
+    val id: String,
+)
+
+data class OpenAiModelsResponseDto(
+    val data: List<OpenAiModelDto>,
+)
+
 data class OpenAiChatCompletionDeltaDto(
     val role: String? = null,
     val content: String? = null,
@@ -127,6 +135,8 @@ interface OpenAiChatCompletionProviderAdapter {
         request: OpenAiChatCompletionRequestDto,
     ): OpenAiChatCompletionResponseDto
 
+    suspend fun listModels(): OpenAiModelsResponseDto
+
     fun streamChatCompletion(
         request: OpenAiChatCompletionRequestDto,
     ): OpenAiChatCompletionStreamingSession
@@ -140,14 +150,24 @@ interface OpenAiChatCompletionStreamingSession {
 
 object OpenAiProviderConfigValidator {
     fun validate(config: OpenAiProviderConfig): OpenAiChatCompletionFailure? {
+        return validateBaseUrlAndApiKey(config)
+            ?: if (config.modelId.isBlank()) {
+                OpenAiChatCompletionFailure.MissingConfiguration(fieldName = "modelId")
+            } else {
+                null
+            }
+    }
+
+    fun validateForModelsList(config: OpenAiProviderConfig): OpenAiChatCompletionFailure? {
+        return validateBaseUrlAndApiKey(config)
+    }
+
+    private fun validateBaseUrlAndApiKey(config: OpenAiProviderConfig): OpenAiChatCompletionFailure? {
         if (config.baseUrl.isBlank()) {
             return OpenAiChatCompletionFailure.MissingConfiguration(fieldName = "baseUrl")
         }
         if (config.apiKey.isNullOrBlank()) {
             return OpenAiChatCompletionFailure.MissingConfiguration(fieldName = "apiKey")
-        }
-        if (config.modelId.isBlank()) {
-            return OpenAiChatCompletionFailure.MissingConfiguration(fieldName = "modelId")
         }
 
         val normalizedBaseUrl = try {

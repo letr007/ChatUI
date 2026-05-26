@@ -392,7 +392,7 @@ private fun ChatHomeSurface(
 ) {
     val spacing = LocalChatUiSpacing
     val listState = rememberLazyListState()
-    val floatingComposerHeight = if (chatUiState.pendingAttachmentUris.isEmpty()) 72.dp else 136.dp
+    val floatingComposerHeight = if (chatUiState.pendingAttachmentUris.isEmpty()) 78.dp else 144.dp
     val floatingComposerBottomPadding = spacing.medium
     val transcriptBottomPadding = floatingComposerHeight + floatingComposerBottomPadding + spacing.large
     val pendingAssistantPlaceholderVisible = chatUiState.generationState == ChatGenerationState.Sending
@@ -1223,9 +1223,9 @@ private fun ComposerBar(
         ),
         label = "composerWidthFraction",
     )
-    val composerControlHeight = 32.dp
+    val composerControlHeight = 34.dp
     val composerVerticalPadding by animateDpAsState(
-        targetValue = 2.dp,
+        targetValue = 3.dp,
         animationSpec = spring(
             dampingRatio = 0.92f,
             stiffness = 760f,
@@ -1380,7 +1380,7 @@ private fun ComposerBar(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 2.dp),
+                                    .padding(vertical = 4.dp),
                                 contentAlignment = Alignment.CenterStart,
                             ) {
                                 if (composerFieldValue.text.isEmpty() && chatUiState.configFailure != null) {

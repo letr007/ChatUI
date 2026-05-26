@@ -29,6 +29,8 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,6 +40,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.letr.chatui.R
@@ -199,19 +203,13 @@ fun SettingsScreen(
                 title = stringResource(R.string.settings_access_section_title),
                 subtitle = stringResource(R.string.settings_access_section_subtitle),
             ) {
-                MinimalSettingsField(
-                    value = uiState.apiKeyInput,
+                PersistedSecretSettingsField(
+                    rawValue = uiState.apiKeyInput,
                     onValueChange = onApiKeyInputChanged,
                     label = stringResource(R.string.settings_api_key_label),
                     enabled = !uiState.isSaving,
                     isError = uiState.validationIssues.any { it == SettingsValidationIssue.MissingApiKey },
-                    supportingText = when (val persistedState = uiState.persistedApiKeyState) {
-                        is PersistedApiKeyState.Persisted -> stringResource(
-                            R.string.settings_api_key_stored_supporting,
-                            persistedState.maskedValue,
-                        )
-                        PersistedApiKeyState.Missing -> stringResource(R.string.settings_api_key_required_supporting)
-                    },
+                    persistedApiKeyState = uiState.persistedApiKeyState,
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 )
@@ -227,6 +225,48 @@ fun SettingsScreen(
             )
         }
     }
+}
+
+@Composable
+private fun PersistedSecretSettingsField(
+    rawValue: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    enabled: Boolean,
+    isError: Boolean,
+    persistedApiKeyState: PersistedApiKeyState,
+    visualTransformation: VisualTransformation,
+    keyboardOptions: KeyboardOptions,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+    val displayedValue = when {
+        rawValue.isNotEmpty() -> rawValue
+        persistedApiKeyState is PersistedApiKeyState.Persisted && !isFocused -> persistedApiKeyState.maskedValue
+        else -> ""
+    }
+
+    MinimalSettingsField(
+        value = displayedValue,
+        onValueChange = { updatedValue ->
+            if (persistedApiKeyState is PersistedApiKeyState.Persisted && rawValue.isEmpty() && !isFocused) {
+                onValueChange("")
+            } else {
+                onValueChange(updatedValue)
+            }
+        },
+        label = label,
+        enabled = enabled,
+        isError = isError,
+        supportingText = null,
+        visualTransformation = if (rawValue.isEmpty() && persistedApiKeyState is PersistedApiKeyState.Persisted && !isFocused) {
+            VisualTransformation.None
+        } else {
+            visualTransformation
+        },
+        keyboardOptions = keyboardOptions,
+        interactionSource = interactionSource,
+    )
 }
 
 @Composable
@@ -456,6 +496,7 @@ private fun MinimalSettingsField(
     supportingText: String? = null,
     visualTransformation: VisualTransformation = VisualTransformation.None,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    interactionSource: MutableInteractionSource? = null,
 ) {
     val spacing = LocalChatUiSpacing
     val corners = LocalChatUiCorners
@@ -474,6 +515,7 @@ private fun MinimalSettingsField(
             singleLine = true,
             enabled = enabled,
             isError = isError,
+            interactionSource = interactionSource,
             visualTransformation = visualTransformation,
             keyboardOptions = keyboardOptions,
             shape = corners.large,

@@ -44,6 +44,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -66,8 +67,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalNavigationDrawer
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -91,6 +90,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -392,7 +392,7 @@ private fun ChatHomeSurface(
 ) {
     val spacing = LocalChatUiSpacing
     val listState = rememberLazyListState()
-    val floatingComposerHeight = if (chatUiState.pendingAttachmentUris.isEmpty()) 84.dp else 156.dp
+    val floatingComposerHeight = if (chatUiState.pendingAttachmentUris.isEmpty()) 72.dp else 136.dp
     val floatingComposerBottomPadding = spacing.medium
     val transcriptBottomPadding = floatingComposerHeight + floatingComposerBottomPadding + spacing.large
     val pendingAssistantPlaceholderVisible = chatUiState.generationState == ChatGenerationState.Sending
@@ -1223,9 +1223,9 @@ private fun ComposerBar(
         ),
         label = "composerWidthFraction",
     )
-    val composerControlHeight = 34.dp
+    val composerControlHeight = 32.dp
     val composerVerticalPadding by animateDpAsState(
-        targetValue = 3.dp,
+        targetValue = 2.dp,
         animationSpec = spring(
             dampingRatio = 0.92f,
             stiffness = 760f,
@@ -1316,7 +1316,7 @@ private fun ComposerBar(
                         shape = corners.large,
                     )
                     .padding(horizontal = composerHorizontalPadding, vertical = composerVerticalPadding),
-                verticalArrangement = Arrangement.spacedBy(spacing.small),
+                verticalArrangement = Arrangement.spacedBy(spacing.xSmall),
             ) {
                 if (chatUiState.pendingAttachmentUris.isNotEmpty()) {
                     UriImageStrip(
@@ -1355,7 +1355,7 @@ private fun ComposerBar(
 
                     Spacer(modifier = Modifier.width(composerSideGap))
 
-                    OutlinedTextField(
+                    BasicTextField(
                         value = composerFieldValue,
                         onValueChange = {
                             composerFieldValue = it
@@ -1365,24 +1365,34 @@ private fun ComposerBar(
                         modifier = Modifier
                             .weight(1f)
                             .heightIn(min = composerControlHeight),
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(
+                            color = if (chatUiState.hasActiveGeneration) {
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f)
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            }
+                        ),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.onSurface),
                         minLines = 1,
                         maxLines = 5,
                         enabled = !chatUiState.hasActiveGeneration,
-                        placeholder = if (chatUiState.configFailure != null) {
-                            {
-                                Text(text = stringResource(R.string.openai_failure_label_settings_required))
+                        decorationBox = { innerTextField ->
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 2.dp),
+                                contentAlignment = Alignment.CenterStart,
+                            ) {
+                                if (composerFieldValue.text.isEmpty() && chatUiState.configFailure != null) {
+                                    Text(
+                                        text = stringResource(R.string.openai_failure_label_settings_required),
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                innerTextField()
                             }
-                        } else {
-                            null
                         },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent,
-                            disabledContainerColor = Color.Transparent,
-                            focusedBorderColor = Color.Transparent,
-                            unfocusedBorderColor = Color.Transparent,
-                            disabledBorderColor = Color.Transparent,
-                        ),
                     )
 
                     Spacer(modifier = Modifier.width(composerSideGap))

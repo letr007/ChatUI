@@ -1315,16 +1315,20 @@ private fun ComposerBar(
                         color = MaterialTheme.colorScheme.outline.copy(alpha = 0.06f),
                         shape = corners.large,
                     )
-                    .padding(horizontal = composerHorizontalPadding, vertical = composerVerticalPadding),
+                    .padding(vertical = composerVerticalPadding),
                 verticalArrangement = Arrangement.spacedBy(spacing.xSmall),
             ) {
                 if (chatUiState.pendingAttachmentUris.isNotEmpty()) {
-                    UriImageStrip(
-                        uriStrings = chatUiState.pendingAttachmentUris,
-                        removable = true,
-                        thumbnailSize = 56.dp,
-                        onRemove = onPendingAttachmentRemoved,
-                    )
+                    Box(
+                        modifier = Modifier.padding(horizontal = composerHorizontalPadding),
+                    ) {
+                        UriImageStrip(
+                            uriStrings = chatUiState.pendingAttachmentUris,
+                            removable = true,
+                            thumbnailSize = 56.dp,
+                            onRemove = onPendingAttachmentRemoved,
+                        )
+                    }
                 }
 
                 Row(

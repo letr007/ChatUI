@@ -1,3 +1,17 @@
+import java.util.Properties
+
+val localProperties = Properties().apply {
+    val file = rootProject.file("local.properties")
+    if (file.exists()) {
+        file.inputStream().use(::load)
+    }
+}
+
+val releaseStoreFilePath = localProperties.getProperty("release.storeFile")
+val releaseStorePassword = localProperties.getProperty("release.storePassword")
+val releaseKeyAlias = localProperties.getProperty("release.keyAlias")
+val releaseKeyPassword = localProperties.getProperty("release.keyPassword")
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -7,6 +21,22 @@ plugins {
 android {
     namespace = "com.letr.chatui"
     compileSdk = 34
+
+    signingConfigs {
+        if (
+            !releaseStoreFilePath.isNullOrBlank() &&
+            !releaseStorePassword.isNullOrBlank() &&
+            !releaseKeyAlias.isNullOrBlank() &&
+            !releaseKeyPassword.isNullOrBlank()
+        ) {
+            create("release") {
+                storeFile = file(releaseStoreFilePath)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
 
     defaultConfig {
         applicationId = "com.letr.chatui"
@@ -25,6 +55,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.findByName("release")
         }
     }
     compileOptions {

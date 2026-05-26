@@ -14,6 +14,7 @@ enum class SettingsStorageBackend {
 enum class SettingsStorageTarget {
     BASE_URL,
     MODEL,
+    MODEL_LIST,
     API_KEY,
 }
 
@@ -59,6 +60,11 @@ object SettingsStorageContract {
             plaintextPreferenceStyleAllowed = true,
         ),
         SettingsStorageRule(
+            target = SettingsStorageTarget.MODEL_LIST,
+            backend = SettingsStorageBackend.DATA_STORE,
+            plaintextPreferenceStyleAllowed = true,
+        ),
+        SettingsStorageRule(
             target = SettingsStorageTarget.API_KEY,
             backend = SettingsStorageBackend.ENCRYPTED_LOCAL_STORAGE,
             plaintextPreferenceStyleAllowed = false,
@@ -100,6 +106,11 @@ object ChatSettingsSanitizer {
         return NonSensitiveChatSettings(
             apiBaseUrl = settings.apiBaseUrl.trim(),
             modelId = settings.modelId.trim(),
+            configuredModelIds = settings.configuredModelIds
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+                .distinct()
+                .sorted(),
         )
     }
 
@@ -189,6 +200,7 @@ object ChatSettingsValidator {
         return ChatSettings(
             apiBaseUrl = settings.apiBaseUrl,
             modelId = settings.modelId,
+            configuredModelIds = settings.configuredModelIds,
             apiKeyState = ApiKeyMaskingPolicy.toPersistedState(apiKey),
         )
     }

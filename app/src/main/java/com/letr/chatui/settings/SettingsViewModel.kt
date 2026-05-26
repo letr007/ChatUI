@@ -30,6 +30,7 @@ data class SettingsFeedback(
 data class SettingsUiState(
     val apiBaseUrl: String = "",
     val modelId: String = "",
+    val configuredModelIds: List<String> = emptyList(),
     val apiKeyInput: String = "",
     val persistedApiKeyState: PersistedApiKeyState = PersistedApiKeyState.Missing,
     val validationIssues: List<SettingsValidationIssue> = emptyList(),
@@ -45,6 +46,7 @@ data class SettingsUiState(
 private data class SavedSettingsSnapshot(
     val apiBaseUrl: String,
     val modelId: String,
+    val configuredModelIds: List<String>,
     val persistedApiKeyState: PersistedApiKeyState,
 )
 
@@ -60,6 +62,7 @@ class SettingsViewModel(
     private var savedSnapshot = SavedSettingsSnapshot(
         apiBaseUrl = "",
         modelId = "",
+        configuredModelIds = emptyList(),
         persistedApiKeyState = PersistedApiKeyState.Missing,
     )
 
@@ -146,14 +149,55 @@ class SettingsViewModel(
     }
 
     fun importModelId(modelId: String) {
-        updateForm(modelId = modelId)
         _uiState.update {
             it.copy(
-                feedback = SettingsFeedback(
-                    message = resources.getString(R.string.settings_model_imported_feedback, modelId),
-                    isError = false,
-                ),
+                configuredModelIds = (it.configuredModelIds + modelId)
+                    .map(String::trim)
+                    .filter(String::isNotEmpty)
+                    .distinct()
+                    .sorted(),
+                feedback = null,
             )
+        }
+    }
+
+    fun addCurrentModelToConfiguredList() {
+        val modelId = uiState.value.modelId.trim()
+        if (modelId.isEmpty()) {
+            return
+        }
+        importModelId(modelId)
+    }
+
+    fun selectConfiguredModel(modelId: String) {
+        updateForm(modelId = modelId)
+    }
+
+    fun removeConfiguredModel(modelId: String) {
+        _uiState.update {
+            it.copy(
+                configuredModelIds = it.configuredModelIds.filterNot { configuredModelId -> configuredModelId == modelId },
+                feedback = null,
+            )
+        }
+    }
+
+    fun switchActiveModel(modelId: String) {
+        val state = uiState.value
+        if (modelId.isBlank() || modelId == state.modelId || modelId !in state.configuredModelIds) {
+            return
+        }
+
+        viewModelScope.launch {
+            val settings = settingsRepository.getChatSettings()
+            settingsRepository.updateNonSensitiveSettings(
+                NonSensitiveChatSettings(
+                    apiBaseUrl = settings.apiBaseUrl,
+                    modelId = modelId,
+                    configuredModelIds = settings.configuredModelIds,
+                )
+            )
+            refreshFromRepository()
         }
     }
 
@@ -190,6 +234,7 @@ class SettingsViewModel(
                             NonSensitiveChatSettings(
                                 apiBaseUrl = state.apiBaseUrl,
                                 modelId = state.modelId,
+                                configuredModelIds = state.configuredModelIds,
                             )
                         )
                     } catch (throwable: Throwable) {
@@ -201,6 +246,7 @@ class SettingsViewModel(
                         NonSensitiveChatSettings(
                             apiBaseUrl = state.apiBaseUrl,
                             modelId = state.modelId,
+                            configuredModelIds = state.configuredModelIds,
                         )
                     )
                     if (normalizedApiKey != null) {
@@ -223,12 +269,14 @@ class SettingsViewModel(
                         hasUnsavedChanges = hasUnsavedChanges(
                             apiBaseUrl = it.apiBaseUrl,
                             modelId = it.modelId,
+                            configuredModelIds = it.configuredModelIds,
                             apiKeyInput = it.apiKeyInput,
                             persistedApiKeyState = it.persistedApiKeyState,
                         ),
                         canSave = issues.isEmpty() && hasUnsavedChanges(
                             apiBaseUrl = it.apiBaseUrl,
                             modelId = it.modelId,
+                            configuredModelIds = it.configuredModelIds,
                             apiKeyInput = it.apiKeyInput,
                             persistedApiKeyState = it.persistedApiKeyState,
                         ),
@@ -267,12 +315,14 @@ class SettingsViewModel(
                         hasUnsavedChanges = hasUnsavedChanges(
                             apiBaseUrl = it.apiBaseUrl,
                             modelId = it.modelId,
+                            configuredModelIds = it.configuredModelIds,
                             apiKeyInput = it.apiKeyInput,
                             persistedApiKeyState = it.persistedApiKeyState,
                         ),
                         canSave = issues.isEmpty() && hasUnsavedChanges(
                             apiBaseUrl = it.apiBaseUrl,
                             modelId = it.modelId,
+                            configuredModelIds = it.configuredModelIds,
                             apiKeyInput = it.apiKeyInput,
                             persistedApiKeyState = it.persistedApiKeyState,
                         ),
@@ -298,6 +348,7 @@ class SettingsViewModel(
             buildUiState(
                 apiBaseUrl = apiBaseUrl,
                 modelId = modelId,
+                configuredModelIds = it.configuredModelIds,
                 apiKeyInput = apiKeyInput,
                 persistedApiKeyState = it.persistedApiKeyState,
                 isSaving = false,
@@ -314,11 +365,13 @@ class SettingsViewModel(
             savedSnapshot = SavedSettingsSnapshot(
                 apiBaseUrl = settings.apiBaseUrl,
                 modelId = settings.modelId,
+                configuredModelIds = settings.configuredModelIds,
                 persistedApiKeyState = settings.apiKeyState,
             )
             _uiState.value = buildUiState(
                 apiBaseUrl = settings.apiBaseUrl,
                 modelId = settings.modelId,
+                configuredModelIds = settings.configuredModelIds,
                 apiKeyInput = "",
                 persistedApiKeyState = settings.apiKeyState,
                 isSaving = false,
@@ -330,6 +383,7 @@ class SettingsViewModel(
     private fun buildUiState(
         apiBaseUrl: String,
         modelId: String,
+        configuredModelIds: List<String>,
         apiKeyInput: String,
         persistedApiKeyState: PersistedApiKeyState,
         isSaving: Boolean,
@@ -344,12 +398,14 @@ class SettingsViewModel(
         val hasUnsavedChanges = hasUnsavedChanges(
             apiBaseUrl = apiBaseUrl,
             modelId = modelId,
+            configuredModelIds = configuredModelIds,
             apiKeyInput = apiKeyInput,
             persistedApiKeyState = persistedApiKeyState,
         )
         return SettingsUiState(
             apiBaseUrl = apiBaseUrl,
             modelId = modelId,
+            configuredModelIds = configuredModelIds,
             apiKeyInput = apiKeyInput,
             persistedApiKeyState = persistedApiKeyState,
             validationIssues = validationIssues,
@@ -381,11 +437,13 @@ class SettingsViewModel(
     private fun hasUnsavedChanges(
         apiBaseUrl: String,
         modelId: String,
+        configuredModelIds: List<String>,
         apiKeyInput: String,
         persistedApiKeyState: PersistedApiKeyState,
     ): Boolean {
         return apiBaseUrl != savedSnapshot.apiBaseUrl ||
             modelId != savedSnapshot.modelId ||
+            configuredModelIds != savedSnapshot.configuredModelIds ||
             apiKeyInput.isNotBlank() ||
             persistedApiKeyState != savedSnapshot.persistedApiKeyState
     }

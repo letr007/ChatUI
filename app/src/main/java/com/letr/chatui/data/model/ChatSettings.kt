@@ -9,10 +9,12 @@ sealed interface PersistedApiKeyState {
 data class NonSensitiveChatSettings(
     val apiBaseUrl: String,
     val modelId: String,
+    val configuredModelIds: List<String> = emptyList(),
 )
 
 data class ChatSettings(
     val apiBaseUrl: String,
     val modelId: String,
+    val configuredModelIds: List<String> = emptyList(),
     val apiKeyState: PersistedApiKeyState = PersistedApiKeyState.Missing,
 )

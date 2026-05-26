@@ -38,7 +38,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.letr.chatui.R
@@ -55,8 +54,10 @@ fun SettingsScreen(
     onApiKeyInputChanged: (String) -> Unit,
     onFetchModels: () -> Unit,
     onImportModelId: (String) -> Unit,
+    onAddCurrentModelToConfiguredList: () -> Unit,
+    onSelectConfiguredModel: (String) -> Unit,
+    onRemoveConfiguredModel: (String) -> Unit,
     onSave: () -> Unit,
-    onClearApiKey: () -> Unit,
 ) {
     val spacing = LocalChatUiSpacing
 
@@ -73,7 +74,6 @@ fun SettingsScreen(
                 .widthIn(max = 760.dp),
             verticalArrangement = Arrangement.spacedBy(spacing.medium),
         ) {
-            SettingsHeaderCard()
             SettingsFeedbackCard(uiState = uiState)
 
             SettingsSectionCard(
@@ -105,20 +105,22 @@ fun SettingsScreen(
                     label = stringResource(R.string.settings_model_id_label),
                     enabled = !uiState.isSaving,
                     isError = uiState.validationIssues.any { it == SettingsValidationIssue.MissingModelId },
-                    supportingText = stringResource(R.string.settings_model_id_supporting),
+                    supportingText = null,
                 )
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.spacedBy(spacing.small),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(
-                        text = stringResource(R.string.settings_models_import_supporting),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    OutlinedButton(
+                        onClick = onAddCurrentModelToConfiguredList,
+                        enabled = !uiState.isSaving && uiState.modelId.isNotBlank(),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)),
                         modifier = Modifier.weight(1f),
-                    )
+                    ) {
+                        Text(stringResource(R.string.settings_models_add_local_action))
+                    }
 
                     OutlinedButton(
                         onClick = onFetchModels,
@@ -126,10 +128,8 @@ fun SettingsScreen(
                         colors = ButtonDefaults.outlinedButtonColors(
                             contentColor = MaterialTheme.colorScheme.onSurface,
                         ),
-                        border = BorderStroke(
-                            1.dp,
-                            MaterialTheme.colorScheme.outline.copy(alpha = 0.1f),
-                        ),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)),
+                        modifier = Modifier.weight(1f),
                     ) {
                         if (uiState.isFetchingModels) {
                             CircularProgressIndicator(
@@ -148,18 +148,48 @@ fun SettingsScreen(
                     }
                 }
 
+                if (uiState.configuredModelIds.isNotEmpty()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(spacing.small)) {
+                        Text(
+                            text = stringResource(R.string.settings_models_local_section_title),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(spacing.small),
+                            verticalArrangement = Arrangement.spacedBy(spacing.small),
+                        ) {
+                            uiState.configuredModelIds.forEach { modelId ->
+                                SettingsConfiguredModelChip(
+                                    modelId = modelId,
+                                    selected = uiState.modelId == modelId,
+                                    onSelect = { onSelectConfiguredModel(modelId) },
+                                    onRemove = { onRemoveConfiguredModel(modelId) },
+                                )
+                            }
+                        }
+                    }
+                }
+
                 if (uiState.availableModelIds.isNotEmpty()) {
                     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f))
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(spacing.small),
-                        verticalArrangement = Arrangement.spacedBy(spacing.small),
-                    ) {
-                        uiState.availableModelIds.forEach { modelId ->
-                            SettingsModelChip(
-                                modelId = modelId,
-                                selected = uiState.modelId == modelId,
-                                onClick = { onImportModelId(modelId) },
-                            )
+                    Column(verticalArrangement = Arrangement.spacedBy(spacing.small)) {
+                        Text(
+                            text = stringResource(R.string.settings_models_remote_section_title),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(spacing.small),
+                            verticalArrangement = Arrangement.spacedBy(spacing.small),
+                        ) {
+                            uiState.availableModelIds.forEach { modelId ->
+                                SettingsImportModelChip(
+                                    modelId = modelId,
+                                    imported = modelId in uiState.configuredModelIds,
+                                    onClick = { onImportModelId(modelId) },
+                                )
+                            }
                         }
                     }
                 }
@@ -176,13 +206,10 @@ fun SettingsScreen(
                     enabled = !uiState.isSaving,
                     isError = uiState.validationIssues.any { it == SettingsValidationIssue.MissingApiKey },
                     supportingText = when (val persistedState = uiState.persistedApiKeyState) {
-                        is PersistedApiKeyState.Persisted -> {
-                            stringResource(
-                                R.string.settings_api_key_stored_supporting,
-                                persistedState.maskedValue,
-                            )
-                        }
-
+                        is PersistedApiKeyState.Persisted -> stringResource(
+                            R.string.settings_api_key_stored_supporting,
+                            persistedState.maskedValue,
+                        )
                         PersistedApiKeyState.Missing -> stringResource(R.string.settings_api_key_required_supporting)
                     },
                     visualTransformation = PasswordVisualTransformation(),
@@ -197,31 +224,6 @@ fun SettingsScreen(
             SettingsActionCard(
                 uiState = uiState,
                 onSave = onSave,
-                onClearApiKey = onClearApiKey,
-            )
-        }
-    }
-}
-
-@Composable
-private fun SettingsHeaderCard() {
-    val spacing = LocalChatUiSpacing
-    val corners = LocalChatUiCorners
-    Surface(
-        shape = corners.large,
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.06f)),
-    ) {
-        Column(
-            modifier = Modifier.padding(horizontal = spacing.large, vertical = spacing.large),
-            verticalArrangement = Arrangement.spacedBy(spacing.xSmall),
-        ) {
-            Text(
-                text = stringResource(R.string.settings_title),
-                modifier = Modifier.fillMaxWidth(),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold,
-                textAlign = TextAlign.Center,
             )
         }
     }
@@ -243,22 +245,21 @@ private fun SettingsSectionCard(
         Column(
             modifier = Modifier.padding(horizontal = spacing.large, vertical = spacing.medium),
             verticalArrangement = Arrangement.spacedBy(spacing.medium),
-            content = {
-                Column(verticalArrangement = Arrangement.spacedBy(spacing.xSmall)) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Text(
-                        text = subtitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                content()
-            },
-        )
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(spacing.xSmall)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            content()
+        }
     }
 }
 
@@ -266,7 +267,6 @@ private fun SettingsSectionCard(
 private fun SettingsActionCard(
     uiState: SettingsUiState,
     onSave: () -> Unit,
-    onClearApiKey: () -> Unit,
 ) {
     val spacing = LocalChatUiSpacing
     val corners = LocalChatUiCorners
@@ -286,39 +286,25 @@ private fun SettingsActionCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            Row(
+            Button(
+                onClick = onSave,
+                enabled = uiState.canSave,
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(spacing.small),
-                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Button(
-                    onClick = onSave,
-                    enabled = uiState.canSave,
-                    modifier = Modifier.weight(1f),
-                ) {
-                    if (uiState.isSaving) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.padding(end = spacing.small).heightIn(min = 16.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onPrimary,
-                        )
-                    }
-                    Text(
-                        if (uiState.isSaving) {
-                            stringResource(R.string.settings_saving)
-                        } else {
-                            stringResource(R.string.settings_save)
-                        }
+                if (uiState.isSaving) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.padding(end = spacing.small).heightIn(min = 16.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimary,
                     )
                 }
-
-                OutlinedButton(
-                    onClick = onClearApiKey,
-                    enabled = uiState.canClearApiKey,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)),
-                ) {
-                    Text(stringResource(R.string.settings_clear_stored_key))
-                }
+                Text(
+                    if (uiState.isSaving) {
+                        stringResource(R.string.settings_saving)
+                    } else {
+                        stringResource(R.string.settings_save)
+                    }
+                )
             }
         }
     }
@@ -379,9 +365,9 @@ private fun SettingsValidationCard(validationIssues: List<SettingsValidationIssu
 }
 
 @Composable
-private fun SettingsModelChip(
+private fun SettingsImportModelChip(
     modelId: String,
-    selected: Boolean,
+    imported: Boolean,
     onClick: () -> Unit,
 ) {
     val spacing = LocalChatUiSpacing
@@ -391,7 +377,7 @@ private fun SettingsModelChip(
             .clip(corners.medium)
             .clickable(onClick = onClick)
             .background(
-                if (selected) {
+                if (imported) {
                     MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.34f)
                 } else {
                     MaterialTheme.colorScheme.surface.copy(alpha = 0.74f)
@@ -402,12 +388,61 @@ private fun SettingsModelChip(
         Text(
             text = modelId,
             style = MaterialTheme.typography.labelLarge,
+            color = if (imported) {
+                MaterialTheme.colorScheme.onPrimaryContainer
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            },
+        )
+    }
+}
+
+@Composable
+private fun SettingsConfiguredModelChip(
+    modelId: String,
+    selected: Boolean,
+    onSelect: () -> Unit,
+    onRemove: () -> Unit,
+) {
+    val spacing = LocalChatUiSpacing
+    val corners = LocalChatUiCorners
+    Row(
+        modifier = Modifier
+            .clip(corners.medium)
+            .background(
+                if (selected) {
+                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.34f)
+                } else {
+                    MaterialTheme.colorScheme.surface.copy(alpha = 0.74f)
+                }
+            )
+            .clickable(onClick = onSelect)
+            .padding(start = spacing.medium, end = spacing.small, top = spacing.small, bottom = spacing.small),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(spacing.small),
+    ) {
+        Text(
+            text = modelId,
+            style = MaterialTheme.typography.labelLarge,
             color = if (selected) {
                 MaterialTheme.colorScheme.onPrimaryContainer
             } else {
                 MaterialTheme.colorScheme.onSurface
             },
         )
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(999.dp))
+                .clickable(onClick = onRemove)
+                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+                .padding(horizontal = 6.dp, vertical = 2.dp),
+        ) {
+            Text(
+                text = "×",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -425,9 +460,7 @@ private fun MinimalSettingsField(
     val spacing = LocalChatUiSpacing
     val corners = LocalChatUiCorners
 
-    Column(
-        verticalArrangement = Arrangement.spacedBy(spacing.xSmall),
-    ) {
+    Column(verticalArrangement = Arrangement.spacedBy(spacing.xSmall)) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelLarge,
@@ -488,18 +521,20 @@ private fun SettingsScreenPreview() {
     SettingsScreen(
         uiState = SettingsUiState(
             apiBaseUrl = "https://api.openai.com/v1",
-            modelId = "gpt-4o-mini",
+            modelId = "gpt-5.4",
+            configuredModelIds = listOf("gpt-4.1", "gpt-5.4"),
             persistedApiKeyState = PersistedApiKeyState.Persisted(maskedValue = "••••1234"),
-            availableModelIds = listOf("gpt-4o-mini", "gpt-5.4", "gpt-4.1"),
+            availableModelIds = listOf("gpt-4o-mini", "gpt-4.1", "gpt-5.4"),
             canSave = true,
-            canClearApiKey = true,
         ),
         onApiBaseUrlChanged = {},
         onModelIdChanged = {},
         onApiKeyInputChanged = {},
         onFetchModels = {},
         onImportModelId = {},
+        onAddCurrentModelToConfiguredList = {},
+        onSelectConfiguredModel = {},
+        onRemoveConfiguredModel = {},
         onSave = {},
-        onClearApiKey = {},
     )
 }

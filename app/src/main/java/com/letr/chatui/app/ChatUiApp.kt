@@ -120,8 +120,11 @@ fun ChatUiApp() {
             onSettingsApiKeyChanged = settingsViewModel::onApiKeyInputChanged,
             onFetchModels = settingsViewModel::fetchModels,
             onImportModelId = settingsViewModel::importModelId,
+            onAddCurrentModelToConfiguredList = settingsViewModel::addCurrentModelToConfiguredList,
+            onSelectConfiguredModel = settingsViewModel::selectConfiguredModel,
+            onRemoveConfiguredModel = settingsViewModel::removeConfiguredModel,
+            onSwitchActiveModel = settingsViewModel::switchActiveModel,
             onSaveSettings = settingsViewModel::saveSettings,
-            onClearPersistedApiKey = settingsViewModel::clearPersistedApiKey,
         )
     }
 }

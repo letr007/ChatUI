@@ -63,6 +63,8 @@ import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -175,8 +177,11 @@ fun RootScreen(
     onSettingsApiKeyChanged: (String) -> Unit,
     onFetchModels: () -> Unit,
     onImportModelId: (String) -> Unit,
+    onAddCurrentModelToConfiguredList: () -> Unit,
+    onSelectConfiguredModel: (String) -> Unit,
+    onRemoveConfiguredModel: (String) -> Unit,
+    onSwitchActiveModel: (String) -> Unit,
     onSaveSettings: () -> Unit,
-    onClearPersistedApiKey: () -> Unit,
 ) {
     val spacing = LocalChatUiSpacing
     val drawerState = rememberDrawerState(initialValue = androidx.compose.material3.DrawerValue.Closed)
@@ -210,8 +215,10 @@ fun RootScreen(
                     RootTopBar(
                         destination = appShellController.currentDestination,
                         currentModelId = chatUiState.currentModelId,
+                        configuredModelIds = settingsUiState.configuredModelIds,
                         onHistoryClick = appShellController::openHistoryDrawer,
                         onSettingsClick = appShellController::navigateToSettings,
+                        onModelSelected = onSwitchActiveModel,
                         onBackToChatClick = appShellController::navigateToChat,
                     )
                 }
@@ -250,8 +257,10 @@ fun RootScreen(
                             onApiKeyInputChanged = onSettingsApiKeyChanged,
                             onFetchModels = onFetchModels,
                             onImportModelId = onImportModelId,
+                            onAddCurrentModelToConfiguredList = onAddCurrentModelToConfiguredList,
+                            onSelectConfiguredModel = onSelectConfiguredModel,
+                            onRemoveConfiguredModel = onRemoveConfiguredModel,
                             onSave = onSaveSettings,
-                            onClearApiKey = onClearPersistedApiKey,
                         )
                     }
                 }
@@ -260,8 +269,10 @@ fun RootScreen(
                     RootTopBar(
                         destination = appShellController.currentDestination,
                         currentModelId = chatUiState.currentModelId,
+                        configuredModelIds = settingsUiState.configuredModelIds,
                         onHistoryClick = appShellController::openHistoryDrawer,
                         onSettingsClick = appShellController::navigateToSettings,
+                        onModelSelected = onSwitchActiveModel,
                         onBackToChatClick = appShellController::navigateToChat,
                         modifier = Modifier.align(Alignment.TopCenter),
                     )
@@ -281,13 +292,16 @@ fun RootScreen(
 private fun RootTopBar(
     destination: AppDestination,
     currentModelId: String,
+    configuredModelIds: List<String>,
     onHistoryClick: () -> Unit,
     onSettingsClick: () -> Unit,
+    onModelSelected: (String) -> Unit,
     onBackToChatClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val spacing = LocalChatUiSpacing
     val isChatDestination = destination == AppDestination.CHAT
+    var modelMenuExpanded by remember { mutableStateOf(false) }
 
     Surface(
         color = Color.Transparent,
@@ -319,8 +333,36 @@ private fun RootTopBar(
                         if (currentModelId.isNotBlank()) {
                             FloatingTopModelChip(
                                 modelId = currentModelId,
-                                onClick = onSettingsClick,
+                                onClick = {
+                                    if (configuredModelIds.isNotEmpty()) {
+                                        modelMenuExpanded = true
+                                    }
+                                },
                             )
+                            DropdownMenu(
+                                expanded = modelMenuExpanded,
+                                onDismissRequest = { modelMenuExpanded = false },
+                                modifier = Modifier.background(MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)),
+                            ) {
+                                configuredModelIds.forEach { modelId ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                text = modelId,
+                                                color = if (modelId == currentModelId) {
+                                                    MaterialTheme.colorScheme.primary
+                                                } else {
+                                                    MaterialTheme.colorScheme.onSurface
+                                                },
+                                            )
+                                        },
+                                        onClick = {
+                                            modelMenuExpanded = false
+                                            onModelSelected(modelId)
+                                        },
+                                    )
+                                }
+                            }
                         }
                     }
                 }

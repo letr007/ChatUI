@@ -189,8 +189,12 @@ class SettingsViewModelTest {
         viewModel.importModelId("gpt-5.4")
         advanceUntilIdle()
 
+        assertEquals(listOf("gpt-5.4"), viewModel.uiState.value.configuredModelIds)
+
+        viewModel.selectConfiguredModel("gpt-5.4")
+        advanceUntilIdle()
+
         assertEquals("gpt-5.4", viewModel.uiState.value.modelId)
-        assertEquals(resources.getString(R.string.settings_model_imported_feedback, "gpt-5.4"), viewModel.uiState.value.feedback?.message)
     }
 
     @Test
@@ -238,6 +242,7 @@ private class FakeSettingsRepository(
         settingsFlow.value = ChatSettings(
             apiBaseUrl = settings.apiBaseUrl.trim(),
             modelId = settings.modelId.trim(),
+            configuredModelIds = settings.configuredModelIds,
             apiKeyState = if (apiKey.isNullOrBlank()) {
                 PersistedApiKeyState.Missing
             } else {

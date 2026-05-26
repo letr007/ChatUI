@@ -32,6 +32,7 @@ class RealSettingsRepository(
             ChatSettings(
                 apiBaseUrl = settings.apiBaseUrl,
                 modelId = settings.modelId,
+                configuredModelIds = settings.configuredModelIds,
                 apiKeyState = apiKeyState,
             )
         }

@@ -138,6 +138,7 @@ import com.letr.chatui.network.chatcompletions.toUiMessage
 import com.letr.chatui.settings.SettingsScreen
 import com.letr.chatui.settings.SettingsUiState
 import com.letr.chatui.ui.theme.LocalChatUiCorners
+import com.letr.chatui.ui.theme.LocalChatUiShellDimensions
 import com.letr.chatui.ui.theme.LocalChatUiSpacing
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -505,15 +506,27 @@ private fun ChatHomeSurface(
     onOpenSettings: () -> Unit,
 ) {
     val spacing = LocalChatUiSpacing
+    val shellDimensions = LocalChatUiShellDimensions
     val listState = rememberLazyListState()
     val floatingComposerHeight = if (chatUiState.pendingAttachmentUris.isEmpty()) 78.dp else 144.dp
     val floatingComposerBottomPadding = spacing.medium
+    val transcriptTopClearanceHeight = shellDimensions.topBarMinHeight + spacing.small
     val transcriptBottomPadding = floatingComposerHeight + floatingComposerBottomPadding + spacing.large
     val composerScrimHeight = floatingComposerHeight + floatingComposerBottomPadding + 40.dp
     val pendingAssistantPlaceholderVisible = chatUiState.generationState == ChatGenerationState.Sending
-    val transcriptBottomAnchorIndex by remember(chatUiState.messages.size, pendingAssistantPlaceholderVisible) {
+    var transcriptCanScrollUnderTopChrome by rememberSaveable(chatUiState.selectedConversationId?.value) {
+        mutableStateOf(false)
+    }
+    val transcriptTopClearanceVisible = chatUiState.messages.isNotEmpty() && !transcriptCanScrollUnderTopChrome
+    val transcriptBottomAnchorIndex by remember(
+        chatUiState.messages.size,
+        pendingAssistantPlaceholderVisible,
+        transcriptTopClearanceVisible,
+    ) {
         derivedStateOf {
-            chatUiState.messages.size + if (pendingAssistantPlaceholderVisible) 1 else 0
+            (if (transcriptTopClearanceVisible) 1 else 0) +
+                chatUiState.messages.size +
+                if (pendingAssistantPlaceholderVisible) 1 else 0
         }
     }
     var transcriptFollowMode by rememberSaveable(chatUiState.selectedConversationId?.value) {
@@ -543,6 +556,26 @@ private fun ChatHomeSurface(
                     transcriptFollowMode = TranscriptFollowMode.FollowingLatest
                 }
             }
+    }
+
+    LaunchedEffect(listState, chatUiState.messages.size, pendingAssistantPlaceholderVisible) {
+        snapshotFlow {
+            val visibleItems = listState.layoutInfo.visibleItemsInfo
+            val totalItems = listState.layoutInfo.totalItemsCount
+            if (visibleItems.isEmpty() || totalItems == 0) {
+                false
+            } else {
+                val firstVisibleItem = visibleItems.first()
+                val lastVisibleItem = visibleItems.last()
+                val contentFitsViewport =
+                    firstVisibleItem.index == 0 &&
+                        lastVisibleItem.index == totalItems - 1 &&
+                        (lastVisibleItem.offset + lastVisibleItem.size) <= listState.layoutInfo.viewportEndOffset
+                !contentFitsViewport
+            }
+        }.collect { canScrollUnderTopChrome ->
+            transcriptCanScrollUnderTopChrome = canScrollUnderTopChrome
+        }
     }
 
     LaunchedEffect(
@@ -588,11 +621,18 @@ private fun ChatHomeSurface(
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxSize()
+                            .padding(bottom = transcriptBottomPadding)
                             .nestedScroll(transcriptNestedScrollConnection),
                         state = listState,
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = transcriptBottomPadding),
+                        userScrollEnabled = transcriptCanScrollUnderTopChrome,
                         verticalArrangement = Arrangement.spacedBy(spacing.small),
                     ) {
+                        if (transcriptTopClearanceVisible) {
+                            item(key = "transcript-top-clearance") {
+                                Spacer(modifier = Modifier.height(transcriptTopClearanceHeight))
+                            }
+                        }
+
                         items(chatUiState.messages, key = { it.id.value }) { message ->
                             MessageBubble(
                                 message = message,

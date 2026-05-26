@@ -101,6 +101,8 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
@@ -1386,6 +1388,7 @@ private fun ComposerBar(
                     Spacer(modifier = Modifier.width(composerSideGap))
 
                     val showStopButton = chatUiState.canStopGeneration
+                    val stopContentDescription = stringResource(R.string.stop)
                     IconButton(
                         onClick = if (showStopButton) onStopGeneration else onSubmitPrompt,
                         enabled = if (showStopButton) true else chatUiState.sendEnabled,
@@ -1405,18 +1408,22 @@ private fun ComposerBar(
                             disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.42f),
                         ),
                     ) {
-                        Icon(
-                            imageVector = if (showStopButton) {
-                                Icons.Rounded.Close
-                            } else {
-                                Icons.AutoMirrored.Rounded.Send
-                            },
-                            contentDescription = if (showStopButton) {
-                                stringResource(R.string.stop)
-                            } else {
-                                stringResource(R.string.send_prompt)
-                            },
-                        )
+                        if (showStopButton) {
+                            Box(
+                                modifier = Modifier
+                                    .size(14.dp)
+                                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(3.dp))
+                                    .background(MaterialTheme.colorScheme.error)
+                                    .semantics {
+                                        contentDescription = stopContentDescription
+                                    }
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Rounded.Send,
+                                contentDescription = stringResource(R.string.send_prompt),
+                            )
+                        }
                     }
                 }
             }

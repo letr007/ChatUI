@@ -38,6 +38,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -277,6 +278,7 @@ private fun RootTopBar(
     modifier: Modifier = Modifier,
 ) {
     val spacing = LocalChatUiSpacing
+    val isChatDestination = destination == AppDestination.CHAT
 
     Surface(
         color = Color.Transparent,
@@ -288,6 +290,7 @@ private fun RootTopBar(
                 .then(modifier)
                 .fillMaxWidth()
                 .statusBarsPadding()
+                .offset(y = if (isChatDestination) (-16).dp else 0.dp)
                 .padding(horizontal = spacing.small, vertical = spacing.xSmall),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -346,6 +349,7 @@ private fun FloatingTopActionButton(
     content: @Composable () -> Unit,
 ) {
     val corners = LocalChatUiCorners
+    val buttonSize = 40.dp
     var hasSettled by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -384,6 +388,7 @@ private fun FloatingTopActionButton(
     ) {
         IconButton(
             onClick = onClick,
+            modifier = Modifier.size(buttonSize),
             colors = IconButtonDefaults.iconButtonColors(
                 containerColor = Color.Transparent,
                 contentColor = MaterialTheme.colorScheme.onSurface,

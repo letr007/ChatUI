@@ -155,6 +155,21 @@ class ChatViewModelTest {
     }
 
     @Test
+    fun `empty state does not expose stop action when no conversation is selected`() = runTest(dispatcher) {
+        val repository = FakeConversationRepository()
+        val viewModel = createViewModel(
+            repository = repository,
+            streamingRepository = FakeAssistantStreamingRepository(repository),
+            remoteClient = FakeRemoteClient(),
+        )
+
+        advanceUntilIdle()
+
+        assertEquals(null, viewModel.uiState.value.selectedConversationId)
+        assertFalse(viewModel.uiState.value.canStopGeneration)
+    }
+
+    @Test
     fun `switching selected conversation restores each conversation draft`() = runTest(dispatcher) {
         val firstId = ConversationId("conversation-1")
         val secondId = ConversationId("conversation-2")

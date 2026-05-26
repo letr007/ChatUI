@@ -193,7 +193,7 @@ class ChatViewModel(
             sendEnabled = (composerText.isNotBlank() || pendingAttachmentUris.isNotEmpty()) &&
                 !hasAnyActiveGeneration &&
                 configFailure == null,
-            canStopGeneration = inFlight?.conversationId == selectedId,
+            canStopGeneration = selectedId != null && inFlight?.conversationId == selectedId,
             canRegenerate = selectedId != null && !hasAnyActiveGeneration && configFailure == null && canRegenerate(messageList),
             generationState = generationState,
             configFailure = configFailure,

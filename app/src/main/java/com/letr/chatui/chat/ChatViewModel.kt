@@ -3,6 +3,7 @@
 package com.letr.chatui.chat
 
 import android.content.res.Resources
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.letr.chatui.data.model.ActiveChatRuntimeConfig
@@ -81,6 +82,10 @@ class ChatViewModel(
     private val remoteClient: ChatCompletionRemoteClient,
     private val resources: Resources,
 ) : ViewModel() {
+    private companion object {
+        const val TAG = "ChatUI-Submit"
+    }
+
     private val pendingComposerText = MutableStateFlow("")
     private val selectedConversationDraftOverride = MutableStateFlow<String?>(null)
     private val selectedConversationId = conversationRepository.observeSelectedConversationId()
@@ -265,16 +270,21 @@ class ChatViewModel(
         val composerAttachments = uiState.value.pendingAttachmentUris
         val currentConversationId = uiState.value.selectedConversationId
         val configFailure = uiState.value.configFailure
+        Log.d(TAG, "submitPrompt textLength=${composerText.length} attachments=${composerAttachments.size} conversationId=${currentConversationId?.value}")
         if (composerText.isBlank() && composerAttachments.isEmpty()) {
+            Log.d(TAG, "submitPrompt ignored because text and attachments are empty")
             return
         }
         if (uiState.value.hasActiveGeneration) {
+            Log.d(TAG, "submitPrompt ignored because generation is active")
             return
         }
         if (launchInProgress) {
+            Log.d(TAG, "submitPrompt ignored because launch is already in progress")
             return
         }
         if (configFailure != null) {
+            Log.e(TAG, "submitPrompt blocked by config failure: $configFailure")
             transientGenerationOverride.value = ChatGenerationState.Failed(configFailure)
             return
         }
@@ -292,6 +302,7 @@ class ChatViewModel(
                 selectedConversationDraftOverride.value = ""
                 pendingAttachmentUris.value = emptyList()
                 val messagesForRemote = conversationRepository.getMessages(conversationId)
+                Log.d(TAG, "startStreaming conversationId=${conversationId.value} messages=${messagesForRemote.size}")
                 startStreaming(
                     conversationId = conversationId,
                     messagesForRemote = messagesForRemote,

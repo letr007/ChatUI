@@ -121,7 +121,7 @@ class RoomConversationRepositoryTest {
         assertEquals(1, conversations.size)
         assertEquals("Renamed title", conversations.single().title)
         assertEquals(firstConversationId, conversations.single().id)
-        assertNull(repository.observeSelectedConversationId().first())
+        assertEquals(firstConversationId, repository.observeSelectedConversationId().first())
     }
 
     @Test

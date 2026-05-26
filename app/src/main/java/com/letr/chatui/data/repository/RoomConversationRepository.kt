@@ -1,5 +1,6 @@
 package com.letr.chatui.data.repository
 
+import android.util.Log
 import com.letr.chatui.data.contract.ConversationLifecycle
 import com.letr.chatui.data.model.Conversation
 import com.letr.chatui.data.model.ConversationId
@@ -10,6 +11,7 @@ import com.letr.chatui.data.model.MessageId
 import com.letr.chatui.data.model.MessageStatus
 import com.letr.chatui.persistence.LocalConversationDataSource
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import java.util.UUID
 
 class RoomConversationRepository(
@@ -20,6 +22,7 @@ class RoomConversationRepository(
  ) : ConversationRepository, AssistantStreamingRepository {
 
     private companion object {
+        const val TAG = "ChatUI-Repo"
         const val IMAGE_ONLY_CONVERSATION_TITLE = "图片消息"
     }
 
@@ -72,6 +75,7 @@ class RoomConversationRepository(
     ): ConversationId {
         val trimmedContent = content.trim()
         val normalizedImageUris = attachedImageUris.distinct()
+        Log.d(TAG, "sendMessage textLength=${trimmedContent.length} attachments=${normalizedImageUris.size} conversationId=${conversationId?.value}")
         require(trimmedContent.isNotBlank() || normalizedImageUris.isNotEmpty()) {
             "Blank sends must not create empty conversations."
         }
@@ -122,9 +126,11 @@ class RoomConversationRepository(
 
     override suspend fun deleteConversation(conversationId: ConversationId) {
         localDataSource.inTransaction {
+            val deletedSelectedConversation = localDataSource.getSelectedConversationId() == conversationId
             localDataSource.deleteConversation(conversationId)
-            if (localDataSource.getSelectedConversationId() == conversationId) {
-                localDataSource.selectConversation(null)
+            if (deletedSelectedConversation) {
+                val fallbackConversationId = localDataSource.observeConversations().first().firstOrNull()?.id
+                localDataSource.selectConversation(fallbackConversationId)
             }
         }
     }

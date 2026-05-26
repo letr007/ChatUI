@@ -2,6 +2,7 @@ package com.letr.chatui.ui
 
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -131,6 +132,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.withContext
+
+private const val rootScreenLogTag = "RootScreen"
 
 @Composable
 @Preview
@@ -704,8 +707,8 @@ private fun MessageBubble(
                     shape = if (isUser) corners.large else corners.medium,
                 )
                 .padding(
-                    horizontal = if (isUser || message.status == MessageStatus.FAILED) spacing.medium else 0.dp,
-                    vertical = if (isUser || message.status == MessageStatus.FAILED) spacing.small else 0.dp,
+                    horizontal = spacing.medium,
+                    vertical = spacing.small,
                 ),
             verticalArrangement = Arrangement.spacedBy(spacing.small),
         ) {
@@ -720,6 +723,7 @@ private fun MessageBubble(
             if (markdownDocument != null && markdownDocument.blocks.isNotEmpty()) {
                 AssistantMarkdownContent(
                     document = markdownDocument,
+                    allowCodeFence = message.status == MessageStatus.COMPLETE,
                     contentColor = contentColor,
                 )
             } else {
@@ -821,7 +825,10 @@ private fun LazyListState.shouldAutoScrollToLatest(lastIndex: Int): Boolean {
 private fun messageLooksLikeStructuredMarkdown(content: String): Boolean {
     if (content.isBlank()) return false
     val trimmed = content.trim()
-    if (trimmed.startsWith("```") && trimmed.count { it == '`' } >= 6) {
+    val hasFenceLine = trimmed.lineSequence().any { line ->
+        line.trimStart().startsWith("```")
+    }
+    if (hasFenceLine && trimmed.count { it == '`' } >= 3) {
         return true
     }
 
@@ -838,6 +845,7 @@ private fun messageLooksLikeStructuredMarkdown(content: String): Boolean {
 @Composable
 private fun AssistantMarkdownContent(
     document: MarkdownDocument,
+    allowCodeFence: Boolean,
     contentColor: androidx.compose.ui.graphics.Color,
 ) {
     val spacing = LocalChatUiSpacing
@@ -939,10 +947,26 @@ private fun AssistantMarkdownContent(
                 }
 
                 is MarkdownBlock.CodeFence -> {
-                    AssistantCodeBlock(
-                        block = block,
-                        contentColor = contentColor,
-                    )
+                    if (allowCodeFence) {
+                        AssistantCodeBlock(
+                            block = block,
+                            contentColor = contentColor,
+                        )
+                    } else {
+                        Text(
+                            text = buildString {
+                                append("```")
+                                if (!block.language.isNullOrBlank()) {
+                                    append(block.language)
+                                }
+                                appendLine()
+                                append(block.code)
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = contentColor,
+                            fontFamily = FontFamily.Monospace,
+                        )
+                    }
                 }
             }
         }
@@ -1093,14 +1117,25 @@ private fun ComposerBar(
 ) {
     val spacing = LocalChatUiSpacing
     val corners = LocalChatUiCorners
+    val context = LocalContext.current
     val interactionSource = remember { MutableInteractionSource() }
     val focusManager = LocalFocusManager.current
     val isImeVisible = androidx.compose.foundation.layout.WindowInsets.isImeVisible
     val isComposerFocused by interactionSource.collectIsFocusedAsState()
     var attachmentMenuExpanded by remember { mutableStateOf(false) }
     val attachmentPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetMultipleContents(),
+        contract = ActivityResultContracts.OpenMultipleDocuments(),
     ) { uris ->
+        uris.forEach { uri ->
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
+            }.onFailure { error ->
+                Log.w(rootScreenLogTag, "Failed to persist read permission for $uri", error)
+            }
+        }
         onAttachmentUrisSelected(uris.map(Uri::toString))
     }
     var composerFieldValue by rememberSaveable(
@@ -1215,7 +1250,7 @@ private fun ComposerBar(
                     },
                     onGalleryClick = {
                         attachmentMenuExpanded = false
-                        attachmentPickerLauncher.launch("image/*")
+                        attachmentPickerLauncher.launch(arrayOf("image/*"))
                     },
                 )
             }

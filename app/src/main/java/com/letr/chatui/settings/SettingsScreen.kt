@@ -25,6 +25,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.letr.chatui.R
@@ -87,6 +88,16 @@ fun SettingsScreen(
             label = stringResource(R.string.settings_api_key_label),
             enabled = !uiState.isSaving,
             isError = uiState.validationIssues.any { it == SettingsValidationIssue.MissingApiKey },
+            supportingText = when (val persistedState = uiState.persistedApiKeyState) {
+                is PersistedApiKeyState.Persisted -> {
+                    stringResource(
+                        R.string.settings_api_key_stored_supporting,
+                        persistedState.maskedValue,
+                    )
+                }
+
+                PersistedApiKeyState.Missing -> stringResource(R.string.settings_api_key_required_supporting)
+            },
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
         )
@@ -184,7 +195,8 @@ private fun MinimalSettingsField(
     label: String,
     enabled: Boolean,
     isError: Boolean,
-    visualTransformation: androidx.compose.ui.text.input.VisualTransformation = androidx.compose.ui.text.input.VisualTransformation.None,
+    supportingText: String? = null,
+    visualTransformation: VisualTransformation = VisualTransformation.None,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
 ) {
     val spacing = LocalChatUiSpacing
@@ -222,6 +234,13 @@ private fun MinimalSettingsField(
                     disabledBorderColor = androidx.compose.ui.graphics.Color.Transparent,
                 ),
             )
+            supportingText?.let { supporting ->
+                Text(
+                    text = supporting,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }

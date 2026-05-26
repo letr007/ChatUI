@@ -1,6 +1,8 @@
 package com.letr.chatui.data.remote
 
 import android.content.ContentResolver
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Base64
 import com.letr.chatui.data.model.ActiveChatRuntimeConfig
@@ -20,10 +22,12 @@ import com.letr.chatui.network.chatcompletions.OpenAiChatMessageContentPartDto
 import com.letr.chatui.network.chatcompletions.OpenAiProviderConfig
 import com.letr.chatui.network.chatcompletions.OpenAiProviderConfigValidator
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.channels.ProducerScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import java.io.ByteArrayOutputStream
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 
@@ -75,11 +79,23 @@ interface OpenAiChatCompletionRequestFactoryContract {
 open class OpenAiChatCompletionRequestFactory(
     private val contentResolver: ContentResolver,
 ) : OpenAiChatCompletionRequestFactoryContract {
+    private companion object {
+        const val TAG = "ChatUI-Images"
+        const val MAX_IMAGE_DIMENSION = 1280
+        const val TARGET_MAX_BYTES = 800 * 1024
+        const val MIN_JPEG_QUALITY = 55
+    }
+
     override open fun create(
         messages: List<Message>,
         providerConfig: OpenAiProviderConfig,
         stream: Boolean,
     ): OpenAiChatCompletionRequestDto {
+        val attachmentCount = messages.sumOf { it.attachedImageUris.size }
+        logDebug(
+            TAG,
+            "create request stream=$stream messages=${messages.size} attachments=$attachmentCount model=${providerConfig.modelId}"
+        )
         return OpenAiChatCompletionRequestDto(
             model = providerConfig.modelId,
             messages = messages
@@ -112,15 +128,107 @@ open class OpenAiChatCompletionRequestFactory(
     private fun toDataUrl(uriString: String): String? {
         return runCatching {
             val uri = Uri.parse(uriString)
-            val mimeType = contentResolver.getType(uri) ?: guessMimeType(uriString) ?: "image/jpeg"
-            contentResolver.openInputStream(uri)?.use { inputStream ->
-                val bytes = inputStream.readBytes()
-                if (bytes.isEmpty()) return null
-                val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
-                "data:$mimeType;base64,$base64"
-            }
+            val compressedImage = compressImageForUpload(uri)
+            val mimeType = compressedImage?.mimeType ?: contentResolver.getType(uri) ?: guessMimeType(uriString) ?: "image/jpeg"
+            val bytes = compressedImage?.bytes ?: contentResolver.openInputStream(uri)?.use { inputStream -> inputStream.readBytes() }
+            if (bytes == null || bytes.isEmpty()) return null
+            logDebug(TAG, "encoded image uri=$uriString bytes=${bytes.size} mime=$mimeType")
+            val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+            logDebug(TAG, "base64 image uri=$uriString chars=${base64.length}")
+            "data:$mimeType;base64,$base64"
+        }.onFailure { throwable ->
+            logError(TAG, "failed to prepare image uri=$uriString", throwable)
         }.getOrNull()
     }
+
+    private fun compressImageForUpload(uri: Uri): EncodedImage? {
+        val boundsOptions = BitmapFactory.Options().apply {
+            inJustDecodeBounds = true
+        }
+        contentResolver.openInputStream(uri)?.use { inputStream ->
+            BitmapFactory.decodeStream(inputStream, null, boundsOptions)
+        } ?: return null
+
+        if (boundsOptions.outWidth <= 0 || boundsOptions.outHeight <= 0) return null
+
+        logDebug(TAG, "original image uri=$uri width=${boundsOptions.outWidth} height=${boundsOptions.outHeight}")
+
+        val sampleSize = calculateInSampleSize(boundsOptions.outWidth, boundsOptions.outHeight)
+        val decodeOptions = BitmapFactory.Options().apply {
+            inSampleSize = sampleSize
+        }
+        val bitmap = contentResolver.openInputStream(uri)?.use { inputStream ->
+            BitmapFactory.decodeStream(inputStream, null, decodeOptions)
+        } ?: return null
+
+        return bitmap.useScaledBitmap { scaledBitmap ->
+            compressBitmapToJpeg(scaledBitmap)
+        }
+    }
+
+    private fun calculateInSampleSize(width: Int, height: Int): Int {
+        var sampleSize = 1
+        var currentWidth = width
+        var currentHeight = height
+        while (currentWidth > MAX_IMAGE_DIMENSION || currentHeight > MAX_IMAGE_DIMENSION) {
+            sampleSize *= 2
+            currentWidth /= 2
+            currentHeight /= 2
+        }
+        return sampleSize.coerceAtLeast(1)
+    }
+
+    private fun compressBitmapToJpeg(bitmap: Bitmap): EncodedImage {
+        var quality = 88
+        var encodedBytes = encodeBitmap(bitmap, quality)
+        while (encodedBytes.size > TARGET_MAX_BYTES && quality > MIN_JPEG_QUALITY) {
+            quality -= 8
+            encodedBytes = encodeBitmap(bitmap, quality)
+        }
+        logDebug(
+            TAG,
+            "compressed bitmap width=${bitmap.width} height=${bitmap.height} quality=$quality bytes=${encodedBytes.size}"
+        )
+        return EncodedImage(
+            bytes = encodedBytes,
+            mimeType = "image/jpeg",
+        )
+    }
+
+    private fun encodeBitmap(bitmap: Bitmap, quality: Int): ByteArray {
+        val outputStream = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.JPEG, quality, outputStream)
+        return outputStream.toByteArray()
+    }
+
+    private inline fun <T> Bitmap.useScaledBitmap(block: (Bitmap) -> T): T {
+        val scaledBitmap = scaleDownIfNeeded(this)
+        return try {
+            block(scaledBitmap)
+        } finally {
+            if (scaledBitmap !== this && !scaledBitmap.isRecycled) {
+                scaledBitmap.recycle()
+            }
+            if (!isRecycled) {
+                recycle()
+            }
+        }
+    }
+
+    private fun scaleDownIfNeeded(bitmap: Bitmap): Bitmap {
+        val longestSide = maxOf(bitmap.width, bitmap.height)
+        if (longestSide <= MAX_IMAGE_DIMENSION) return bitmap
+        val scale = MAX_IMAGE_DIMENSION.toFloat() / longestSide.toFloat()
+        val targetWidth = (bitmap.width * scale).toInt().coerceAtLeast(1)
+        val targetHeight = (bitmap.height * scale).toInt().coerceAtLeast(1)
+        logDebug(TAG, "scale image from ${bitmap.width}x${bitmap.height} to ${targetWidth}x${targetHeight}")
+        return Bitmap.createScaledBitmap(bitmap, targetWidth, targetHeight, true)
+    }
+
+    private data class EncodedImage(
+        val bytes: ByteArray,
+        val mimeType: String,
+    )
 
     private fun guessMimeType(uriString: String): String? {
         return when {
@@ -152,42 +260,50 @@ class OpenAiChatCompletionStreamReducer(
                     when (event) {
                         is OpenAiChatCompletionStreamEvent.TextDelta -> {
                             if (!started) {
-                                trySend(OpenAiChatCompletionRemoteEvent.AssistantMessageStarted).getOrThrow()
+                                if (!trySendSafely(OpenAiChatCompletionRemoteEvent.AssistantMessageStarted)) {
+                                    return@collect
+                                }
                                 started = true
                             }
                             accumulatedText = event.accumulatedText
-                            trySend(
+                            if (!trySendSafely(
                                 OpenAiChatCompletionRemoteEvent.AssistantMessageDelta(
                                     deltaText = event.text,
                                     accumulatedText = accumulatedText,
                                 )
-                            ).getOrThrow()
+                            )) {
+                                return@collect
+                            }
                         }
 
                         is OpenAiChatCompletionStreamEvent.Completed -> {
                             if (!started) {
-                                trySend(OpenAiChatCompletionRemoteEvent.AssistantMessageStarted).getOrThrow()
+                                if (!trySendSafely(OpenAiChatCompletionRemoteEvent.AssistantMessageStarted)) {
+                                    return@collect
+                                }
                                 started = true
                             }
                             accumulatedText = event.accumulatedText
                             terminal = true
-                            trySend(
+                            if (!trySendSafely(
                                 OpenAiChatCompletionRemoteEvent.AssistantMessageCompleted(
                                     accumulatedText = accumulatedText,
                                     finishReason = event.finishReason,
                                 )
-                            ).getOrThrow()
+                            )) {
+                                return@collect
+                            }
                         }
                     }
                 }
 
                 if (!terminal && started) {
-                    trySend(
+                    trySendSafely(
                         OpenAiChatCompletionRemoteEvent.AssistantMessageFailed(
                             accumulatedText = accumulatedText,
                             failure = interruptedFailure,
                         )
-                    ).getOrThrow()
+                    )
                 }
                 close()
             } catch (throwable: Throwable) {
@@ -195,27 +311,33 @@ class OpenAiChatCompletionStreamReducer(
                 when (failure) {
                     OpenAiChatCompletionFailure.Cancelled -> {
                         if (!started) {
-                            trySend(OpenAiChatCompletionRemoteEvent.AssistantMessageStarted).getOrThrow()
+                            if (!trySendSafely(OpenAiChatCompletionRemoteEvent.AssistantMessageStarted)) {
+                                close()
+                                return@launch
+                            }
                             started = true
                         }
-                        trySend(
+                        trySendSafely(
                             OpenAiChatCompletionRemoteEvent.AssistantMessageCancelled(
                                 accumulatedText = accumulatedText,
                             )
-                        ).getOrThrow()
+                        )
                     }
 
                     else -> {
                         if (!started) {
-                            trySend(OpenAiChatCompletionRemoteEvent.AssistantMessageStarted).getOrThrow()
+                            if (!trySendSafely(OpenAiChatCompletionRemoteEvent.AssistantMessageStarted)) {
+                                close()
+                                return@launch
+                            }
                             started = true
                         }
-                        trySend(
+                        trySendSafely(
                             OpenAiChatCompletionRemoteEvent.AssistantMessageFailed(
                                 accumulatedText = accumulatedText,
                                 failure = failure,
                             )
-                        ).getOrThrow()
+                        )
                     }
                 }
                 close()
@@ -271,6 +393,10 @@ private class ConfigBackedOpenAiChatCompletionRemoteStreamingSession(
     private val streamReducer: OpenAiChatCompletionStreamReducer,
     private val messages: List<Message>,
 ) : OpenAiChatCompletionRemoteStreamingSession {
+    private companion object {
+        const val TAG = "ChatUI-Stream"
+    }
+
     private val underlyingSession = AtomicReference<OpenAiChatCompletionStreamingSession?>(null)
     private val cancelledByCaller = AtomicBoolean(false)
 
@@ -280,20 +406,20 @@ private class ConfigBackedOpenAiChatCompletionRemoteStreamingSession(
                 val providerConfig = activeChatConfigSource.getActiveConfig().toProviderConfig()
                 val validationFailure = OpenAiProviderConfigValidator.validate(providerConfig)
                 if (validationFailure != null) {
-                    trySend(
+                    trySendSafely(
                         OpenAiChatCompletionRemoteEvent.AssistantMessageFailed(
                             accumulatedText = "",
                             failure = validationFailure,
                         )
-                    ).getOrThrow()
+                    )
                     close()
                     return@launch
                 }
 
                 if (cancelledByCaller.get()) {
-                    trySend(
+                    trySendSafely(
                         OpenAiChatCompletionRemoteEvent.AssistantMessageCancelled(accumulatedText = "")
-                    ).getOrThrow()
+                    )
                     close()
                     return@launch
                 }
@@ -303,6 +429,7 @@ private class ConfigBackedOpenAiChatCompletionRemoteStreamingSession(
                     providerConfig = providerConfig,
                     stream = true,
                 )
+                logDebug(TAG, "open stream messages=${request.messages.size} model=${request.model}")
                 val session = adapterFactory.create(providerConfig).streamChatCompletion(request)
                 underlyingSession.set(session)
 
@@ -316,9 +443,12 @@ private class ConfigBackedOpenAiChatCompletionRemoteStreamingSession(
                         }
                     }
                 ).collect { event ->
-                    trySend(event).getOrThrow()
+                    if (!trySendSafely(event)) {
+                        return@collect
+                    }
                 }
             } catch (throwable: Throwable) {
+                logError(TAG, "stream session failed", throwable)
                 val terminalEvent = if (cancelledByCaller.get()) {
                     OpenAiChatCompletionRemoteEvent.AssistantMessageCancelled(accumulatedText = "")
                 } else {
@@ -327,7 +457,7 @@ private class ConfigBackedOpenAiChatCompletionRemoteStreamingSession(
                         failure = throwable.toFailure(),
                     )
                 }
-                trySend(terminalEvent)
+                trySendSafely(terminalEvent)
             }
             close()
         }
@@ -342,6 +472,18 @@ private class ConfigBackedOpenAiChatCompletionRemoteStreamingSession(
         cancelledByCaller.set(true)
         underlyingSession.get()?.cancel()
     }
+}
+
+private fun <T> ProducerScope<T>.trySendSafely(value: T): Boolean {
+    return trySend(value).isSuccess
+}
+
+private fun logDebug(tag: String, message: String) {
+    runCatching { android.util.Log.d(tag, message) }
+}
+
+private fun logError(tag: String, message: String, throwable: Throwable) {
+    runCatching { android.util.Log.e(tag, message, throwable) }
 }
 
 private fun MessageAuthor.toRemoteRole(): String {

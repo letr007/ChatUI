@@ -10,7 +10,9 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import java.io.InterruptedIOException
+import java.net.ConnectException
 import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 import kotlin.coroutines.cancellation.CancellationException
 
 @RunWith(RobolectricTestRunner::class)
@@ -97,6 +99,14 @@ class OpenAiChatCompletionContractTest {
             OpenAiChatCompletionFailure.Cancelled,
             OpenAiChatCompletionErrorMapper.fromThrowable(CancellationException("caller cancelled")),
         )
+        assertEquals(
+            OpenAiChatCompletionFailure.NoNetwork,
+            OpenAiChatCompletionErrorMapper.fromThrowable(UnknownHostException("host not found")),
+        )
+        assertEquals(
+            OpenAiChatCompletionFailure.NoNetwork,
+            OpenAiChatCompletionErrorMapper.fromThrowable(ConnectException("failed to connect")),
+        )
     }
 
     @Test
@@ -119,6 +129,14 @@ class OpenAiChatCompletionContractTest {
         assertEquals(
             resources.getString(R.string.openai_failure_label_timeout),
             OpenAiChatCompletionFailure.Timeout.toUiLabel(resources),
+        )
+        assertEquals(
+            resources.getString(R.string.openai_failure_label_no_network),
+            OpenAiChatCompletionFailure.NoNetwork.toUiLabel(resources),
+        )
+        assertEquals(
+            resources.getString(R.string.openai_failure_message_no_network),
+            OpenAiChatCompletionFailure.NoNetwork.toUiMessage(resources),
         )
         assertEquals(
             resources.getString(R.string.openai_failure_label_unauthorized),

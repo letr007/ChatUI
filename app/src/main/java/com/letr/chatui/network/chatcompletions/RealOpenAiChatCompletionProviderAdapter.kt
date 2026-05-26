@@ -5,6 +5,7 @@ import com.squareup.moshi.JsonWriter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.ProducerScope
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -20,6 +21,8 @@ import okio.Buffer
 import okio.BufferedSource
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicReference
+
+private const val CHAT_UI_HTTP_TAG = "ChatUI-HTTP"
 
 fun interface OpenAiChatCompletionProviderAdapterFactory {
     fun create(config: OpenAiProviderConfig): OpenAiChatCompletionProviderAdapter
@@ -43,11 +46,12 @@ class RealOpenAiChatCompletionProviderAdapter(
     private val providerConfig: OpenAiProviderConfig,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : OpenAiChatCompletionProviderAdapter {
-
     override suspend fun createChatCompletion(
         request: OpenAiChatCompletionRequestDto,
     ): OpenAiChatCompletionResponseDto {
+        logDebug(CHAT_UI_HTTP_TAG, "create completion model=${request.model} messages=${request.messages.size}")
         okHttpClient.newCall(buildRequest(request)).execute().use { response ->
+            logDebug(CHAT_UI_HTTP_TAG, "create completion response code=${response.code}")
             response.throwIfUnsuccessful()
             val body = response.body?.string()
                 ?: throw OpenAiChatCompletionProtocolException("Chat completion response body was empty.")
@@ -90,12 +94,16 @@ private class RealOpenAiChatCompletionStreamingSession(
 
         val readerJob = launch(ioDispatcher) {
             try {
+                logDebug(CHAT_UI_HTTP_TAG, "start streaming request url=${httpRequest.url}")
                 call.execute().use { response ->
+                    logDebug(CHAT_UI_HTTP_TAG, "streaming response code=${response.code}")
                     response.throwIfUnsuccessful()
                     val body = response.body
                         ?: throw OpenAiChatCompletionProtocolException("Streaming response body was empty.")
                     readSseStream(body.source(), parser) { event ->
-                        trySend(event).getOrThrow()
+                        if (!trySendSafely(event)) {
+                            return@readSseStream
+                        }
                     }
                 }
                 close()
@@ -105,6 +113,7 @@ private class RealOpenAiChatCompletionStreamingSession(
                 } else {
                     throwable
                 }
+                logError(CHAT_UI_HTTP_TAG, "streaming request failed", failure)
                 close(failure)
             } finally {
                 activeCall.compareAndSet(call, null)
@@ -121,6 +130,18 @@ private class RealOpenAiChatCompletionStreamingSession(
     override fun cancel() {
         activeCall.get()?.cancel()
     }
+}
+
+private fun <T> ProducerScope<T>.trySendSafely(value: T): Boolean {
+    return trySend(value).isSuccess
+}
+
+private fun logDebug(tag: String, message: String) {
+    runCatching { android.util.Log.d(tag, message) }
+}
+
+private fun logError(tag: String, message: String, throwable: Throwable) {
+    runCatching { android.util.Log.e(tag, message, throwable) }
 }
 
 private fun readSseStream(

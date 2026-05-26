@@ -4,9 +4,11 @@ import android.content.res.Resources
 import com.letr.chatui.R
 import kotlinx.coroutines.flow.Flow
 import java.io.InterruptedIOException
+import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.URI
 import java.net.URISyntaxException
+import java.net.UnknownHostException
 import kotlin.coroutines.cancellation.CancellationException
 
 data class OpenAiChatCompletionRequestDto(
@@ -105,6 +107,8 @@ sealed interface OpenAiChatCompletionFailure {
 
     data object Timeout : OpenAiChatCompletionFailure
 
+    data object NoNetwork : OpenAiChatCompletionFailure
+
     data object Unauthorized : OpenAiChatCompletionFailure
 
     data class RateLimited(val retryAfterSeconds: Long?) : OpenAiChatCompletionFailure
@@ -180,6 +184,8 @@ object OpenAiChatCompletionErrorMapper {
             is CancellationException -> OpenAiChatCompletionFailure.Cancelled
             is SocketTimeoutException,
             is InterruptedIOException -> OpenAiChatCompletionFailure.Timeout
+            is UnknownHostException,
+            is ConnectException -> OpenAiChatCompletionFailure.NoNetwork
             else -> OpenAiChatCompletionFailure.Unknown(detail = throwable.message)
         }
     }
@@ -190,6 +196,7 @@ fun OpenAiChatCompletionFailure.toUiLabel(resources: Resources): String {
         is OpenAiChatCompletionFailure.MissingConfiguration -> resources.getString(R.string.openai_failure_label_settings_required)
         is OpenAiChatCompletionFailure.InvalidBaseUrl -> resources.getString(R.string.openai_failure_label_invalid_url)
         OpenAiChatCompletionFailure.Timeout -> resources.getString(R.string.openai_failure_label_timeout)
+        OpenAiChatCompletionFailure.NoNetwork -> resources.getString(R.string.openai_failure_label_no_network)
         OpenAiChatCompletionFailure.Unauthorized -> resources.getString(R.string.openai_failure_label_unauthorized)
         is OpenAiChatCompletionFailure.RateLimited -> resources.getString(R.string.openai_failure_label_rate_limited)
         OpenAiChatCompletionFailure.Cancelled -> resources.getString(R.string.openai_failure_label_cancelled)
@@ -213,6 +220,7 @@ fun OpenAiChatCompletionFailure.toUiMessage(resources: Resources): String {
         }
 
         OpenAiChatCompletionFailure.Timeout -> resources.getString(R.string.openai_failure_message_timeout)
+        OpenAiChatCompletionFailure.NoNetwork -> resources.getString(R.string.openai_failure_message_no_network)
         OpenAiChatCompletionFailure.Unauthorized -> {
             resources.getString(R.string.openai_failure_message_unauthorized)
         }

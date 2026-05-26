@@ -81,15 +81,20 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalFocusManager
@@ -130,10 +135,16 @@ import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.withContext
 
 private const val rootScreenLogTag = "RootScreen"
+
+private enum class TranscriptFollowMode {
+    FollowingLatest,
+    DetachedByUser,
+}
 
 @Composable
 @Preview
@@ -381,15 +392,49 @@ private fun ChatHomeSurface(
     val floatingComposerHeight = if (chatUiState.pendingAttachmentUris.isEmpty()) 92.dp else 168.dp
     val floatingComposerBottomPadding = spacing.medium
     val transcriptBottomPadding = floatingComposerHeight + floatingComposerBottomPadding + spacing.large
-    val shouldStickTranscriptToBottom by remember(listState, chatUiState.messages.lastIndex) {
+    val pendingAssistantPlaceholderVisible = chatUiState.generationState == ChatGenerationState.Sending
+    val transcriptBottomAnchorIndex by remember(chatUiState.messages.size, pendingAssistantPlaceholderVisible) {
         derivedStateOf {
-            listState.shouldAutoScrollToLatest(chatUiState.messages.lastIndex)
+            chatUiState.messages.size + if (pendingAssistantPlaceholderVisible) 1 else 0
+        }
+    }
+    var transcriptFollowMode by rememberSaveable(chatUiState.selectedConversationId?.value) {
+        mutableStateOf(TranscriptFollowMode.FollowingLatest)
+    }
+    val transcriptNestedScrollConnection = remember(listState, transcriptBottomAnchorIndex) {
+        object : NestedScrollConnection {
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                if (source == NestedScrollSource.UserInput && !listState.isAtTranscriptBottom(transcriptBottomAnchorIndex)) {
+                    transcriptFollowMode = TranscriptFollowMode.DetachedByUser
+                }
+                return Offset.Zero
+            }
         }
     }
 
-    LaunchedEffect(chatUiState.messages.size, chatUiState.messages.lastOrNull()?.content, chatUiState.generationState) {
-        if (chatUiState.messages.isNotEmpty() && shouldStickTranscriptToBottom) {
-            listState.animateScrollToItem(chatUiState.messages.lastIndex)
+    LaunchedEffect(chatUiState.generationState) {
+        if (chatUiState.generationState == ChatGenerationState.Sending) {
+            transcriptFollowMode = TranscriptFollowMode.FollowingLatest
+        }
+    }
+
+    LaunchedEffect(listState, transcriptBottomAnchorIndex) {
+        snapshotFlow { listState.isAtTranscriptBottom(transcriptBottomAnchorIndex) }
+            .collect { isAtBottom ->
+                if (isAtBottom) {
+                    transcriptFollowMode = TranscriptFollowMode.FollowingLatest
+                }
+            }
+    }
+
+    LaunchedEffect(
+        transcriptBottomAnchorIndex,
+        chatUiState.messages.lastOrNull()?.content?.length,
+        chatUiState.generationState,
+        transcriptFollowMode,
+    ) {
+        if (chatUiState.messages.isNotEmpty() && transcriptFollowMode == TranscriptFollowMode.FollowingLatest) {
+            listState.scrollToItem(transcriptBottomAnchorIndex)
         }
     }
 
@@ -423,7 +468,9 @@ private fun ChatHomeSurface(
                     )
                 } else {
                     LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .nestedScroll(transcriptNestedScrollConnection),
                         state = listState,
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = transcriptBottomPadding),
                         verticalArrangement = Arrangement.spacedBy(spacing.small),
@@ -439,10 +486,14 @@ private fun ChatHomeSurface(
                             )
                         }
 
-                        if (chatUiState.generationState == ChatGenerationState.Sending) {
+                        if (pendingAssistantPlaceholderVisible) {
                             item(key = "pending-assistant-placeholder") {
                                 PendingAssistantBubble()
                             }
+                        }
+
+                        item(key = "transcript-bottom-anchor") {
+                            Spacer(modifier = Modifier.height(1.dp))
                         }
                     }
                 }
@@ -612,7 +663,11 @@ private fun MessageBubble(
         else -> MaterialTheme.colorScheme.onSurface
     }
     val clipboardManager = LocalClipboardManager.current
-    if (message.author == MessageAuthor.ASSISTANT && message.status == MessageStatus.PENDING) {
+    if (
+        message.author == MessageAuthor.ASSISTANT &&
+        (message.status == MessageStatus.PENDING ||
+            (message.status == MessageStatus.STREAMING && message.content.isBlank()))
+    ) {
         PendingAssistantBubble()
         return
     }
@@ -812,14 +867,14 @@ private fun MessageBubble(
     }
 }
 
-private fun LazyListState.shouldAutoScrollToLatest(lastIndex: Int): Boolean {
-    if (lastIndex < 0) return false
+private fun LazyListState.isAtTranscriptBottom(bottomAnchorIndex: Int): Boolean {
+    if (bottomAnchorIndex < 0) return true
     val visibleItems = layoutInfo.visibleItemsInfo
     if (visibleItems.isEmpty()) return true
-    val lastVisibleItem = visibleItems.last()
+    val bottomAnchorItem = visibleItems.firstOrNull { it.index == bottomAnchorIndex } ?: return false
     val viewportBottom = layoutInfo.viewportEndOffset
-    val bottomGap = viewportBottom - (lastVisibleItem.offset + lastVisibleItem.size)
-    return lastVisibleItem.index >= lastIndex && bottomGap >= -96
+    val bottomGap = viewportBottom - (bottomAnchorItem.offset + bottomAnchorItem.size)
+    return bottomGap >= -24
 }
 
 private fun messageLooksLikeStructuredMarkdown(content: String): Boolean {

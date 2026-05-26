@@ -61,10 +61,10 @@ interface ConversationRepository {
     suspend fun deleteConversation(conversationId: ConversationId)
 
     /**
-     * Restarts generation for the latest assistant response tied to the latest
-     * user turn in a linear thread.
+     * Removes the latest assistant response tied to the latest user turn so the
+     * caller can restart generation in the same linear thread.
      */
-    suspend fun regenerateLatestResponse(conversationId: ConversationId): MessageId
+    suspend fun regenerateLatestResponse(conversationId: ConversationId)
 
     /**
      * Stops the currently streaming assistant response and stores any partial

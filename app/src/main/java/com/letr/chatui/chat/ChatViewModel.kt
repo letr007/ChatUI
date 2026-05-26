@@ -355,13 +355,12 @@ class ChatViewModel(
         viewModelScope.launch {
             try {
                 transientGenerationOverride.value = null
-                val assistantMessageId = conversationRepository.regenerateLatestResponse(conversationId)
+                conversationRepository.regenerateLatestResponse(conversationId)
                 val messagesForRemote = conversationRepository.getMessages(conversationId)
-                    .filterNot { it.id == assistantMessageId }
                 startStreaming(
                     conversationId = conversationId,
                     messagesForRemote = messagesForRemote,
-                    precreatedAssistantMessageId = assistantMessageId,
+                    precreatedAssistantMessageId = null,
                 )
             } finally {
                 launchInProgress = false
@@ -508,9 +507,9 @@ class ChatViewModel(
             return existing
         }
 
-        return streamingRepository.startAssistantStreaming(generation.conversationId).also { generatedId ->
-            generation.assistantMessageId = generatedId
-        }
+        val generatedId = streamingRepository.startAssistantStreaming(generation.conversationId)
+        generation.assistantMessageId = generatedId
+        return generatedId
     }
 
     private fun completeGeneration(generation: InFlightGeneration) {

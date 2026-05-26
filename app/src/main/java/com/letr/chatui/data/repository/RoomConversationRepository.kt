@@ -135,8 +135,8 @@ class RoomConversationRepository(
         }
     }
 
-    override suspend fun regenerateLatestResponse(conversationId: ConversationId): MessageId {
-        return localDataSource.inTransaction {
+    override suspend fun regenerateLatestResponse(conversationId: ConversationId) {
+        localDataSource.inTransaction {
             val messages = localDataSource.getMessages(conversationId)
             val latestUserIndex = messages.indexOfLast { it.author == MessageAuthor.USER }
             require(latestUserIndex >= 0) { "A user message is required before regeneration." }
@@ -146,8 +146,6 @@ class RoomConversationRepository(
                 .forEach { assistantMessage ->
                     localDataSource.deleteMessage(assistantMessage.id)
                 }
-
-            startAssistantStreaming(conversationId)
         }
     }
 

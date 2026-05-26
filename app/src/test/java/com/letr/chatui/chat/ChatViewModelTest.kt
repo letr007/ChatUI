@@ -861,14 +861,13 @@ class ChatViewModelTest {
             refreshActiveGenerationFlow()
         }
 
-        override suspend fun regenerateLatestResponse(conversationId: ConversationId): MessageId {
+        override suspend fun regenerateLatestResponse(conversationId: ConversationId) {
             val remaining = messagesFlow(conversationId).value.toMutableList()
             val latestUserIndex = remaining.indexOfLast { it.author == MessageAuthor.USER }
             val assistantMessagesToRemove = remaining.drop(latestUserIndex + 1).filter { it.author == MessageAuthor.ASSISTANT }
             remaining.removeAll(assistantMessagesToRemove.toSet())
             messagesFlow(conversationId).value = remaining
             refreshActiveGenerationFlow()
-            return FakeAssistantStreamingRepository(this).startAssistantStreaming(conversationId)
         }
 
         override suspend fun stopGeneration(conversationId: ConversationId, messageId: MessageId) {

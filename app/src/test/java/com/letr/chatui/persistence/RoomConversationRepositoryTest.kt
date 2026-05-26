@@ -175,15 +175,12 @@ class RoomConversationRepositoryTest {
         assertEquals("Part", cancelledAssistant.content)
         assertEquals(MessageStatus.CANCELLED, cancelledAssistant.status)
 
-        val regeneratedAssistantId = repository.regenerateLatestResponse(conversationId)
+        repository.regenerateLatestResponse(conversationId)
         val assistantMessages = repository.observeMessages(conversationId).first()
             .filter { it.author == MessageAuthor.ASSISTANT }
 
-        assertEquals(1, assistantMessages.size)
-        assertEquals(regeneratedAssistantId, assistantMessages.single().id)
-        assertEquals(MessageStatus.STREAMING, assistantMessages.single().status)
-        assertEquals("", assistantMessages.single().content)
-        assertTrue(repository.observeHasActiveGeneration().first())
+        assertTrue(assistantMessages.isEmpty())
+        assertFalse(repository.observeHasActiveGeneration().first())
     }
 
     @Test
@@ -198,18 +195,15 @@ class RoomConversationRepositoryTest {
         repository.appendAssistantDelta(conversationId, secondAssistantId, "Second reply")
         repository.completeAssistantMessage(conversationId, secondAssistantId)
 
-        val regeneratedAssistantId = repository.regenerateLatestResponse(conversationId)
+        repository.regenerateLatestResponse(conversationId)
         val messages = repository.observeMessages(conversationId).first()
         val assistantsAfterLatestUser = messages.dropWhile { it.content != "Second prompt" }
             .drop(1)
             .filter { it.author == MessageAuthor.ASSISTANT }
 
-        assertEquals(listOf("First prompt", "First reply", "Second prompt", ""), messages.map { it.content })
+        assertEquals(listOf("First prompt", "First reply", "Second prompt"), messages.map { it.content })
         assertFalse(messages.any { it.content == "Second reply" })
-        assertEquals(1, assistantsAfterLatestUser.size)
-        assertEquals(regeneratedAssistantId, assistantsAfterLatestUser.single().id)
-        assertEquals(MessageStatus.STREAMING, assistantsAfterLatestUser.single().status)
-        assertEquals("", assistantsAfterLatestUser.single().content)
+        assertTrue(assistantsAfterLatestUser.isEmpty())
     }
 
     @Test

@@ -125,16 +125,14 @@ class ConversationRepositoryContractTest {
         assertEquals("Part", cancelled.content)
         assertEquals(MessageStatus.CANCELLED, cancelled.status)
 
-        val regeneratedAssistantId = runBlocking {
+        runBlocking {
             repository.regenerateLatestResponse(conversationId)
         }
         val messagesAfterRegenerate = repository.observeMessages(conversationId).value
         val assistantMessages = messagesAfterRegenerate.filter { it.author == MessageAuthor.ASSISTANT }
 
-        assertEquals(1, assistantMessages.size)
-        assertEquals(regeneratedAssistantId, assistantMessages.single().id)
-        assertEquals(MessageStatus.STREAMING, assistantMessages.single().status)
-        assertTrue(repository.observeHasActiveGeneration().value)
+        assertTrue(assistantMessages.isEmpty())
+        assertFalse(repository.observeHasActiveGeneration().value)
     }
 
     @Test
@@ -252,7 +250,7 @@ private class FakeConversationRepository : ConversationRepository {
         hasActiveGeneration.value = false
     }
 
-    override suspend fun regenerateLatestResponse(conversationId: ConversationId): MessageId {
+    override suspend fun regenerateLatestResponse(conversationId: ConversationId) {
         val messages = messageFlow(conversationId).value
         val latestUserIndex = messages.indexOfLast { it.author == MessageAuthor.USER }
         require(latestUserIndex >= 0) { "A user message is required before regeneration." }
@@ -262,8 +260,7 @@ private class FakeConversationRepository : ConversationRepository {
                 index <= latestUserIndex || message.author != MessageAuthor.ASSISTANT
             }
         }
-
-        return startAssistantStreaming(conversationId)
+        hasActiveGeneration.value = false
     }
 
     override suspend fun stopGeneration(conversationId: ConversationId, messageId: MessageId) {

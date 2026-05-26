@@ -88,6 +88,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
@@ -200,12 +201,14 @@ fun RootScreen(
     ) {
         Scaffold(
             topBar = {
-                RootTopBar(
-                    destination = appShellController.currentDestination,
-                    onHistoryClick = appShellController::openHistoryDrawer,
-                    onSettingsClick = appShellController::navigateToSettings,
-                    onBackToChatClick = appShellController::navigateToChat,
-                )
+                if (appShellController.currentDestination == AppDestination.SETTINGS) {
+                    RootTopBar(
+                        destination = appShellController.currentDestination,
+                        onHistoryClick = appShellController::openHistoryDrawer,
+                        onSettingsClick = appShellController::navigateToSettings,
+                        onBackToChatClick = appShellController::navigateToChat,
+                    )
+                }
             },
             containerColor = MaterialTheme.colorScheme.background,
         ) { innerPadding ->
@@ -244,6 +247,16 @@ fun RootScreen(
                         )
                     }
                 }
+
+                if (appShellController.currentDestination == AppDestination.CHAT) {
+                    RootTopBar(
+                        destination = appShellController.currentDestination,
+                        onHistoryClick = appShellController::openHistoryDrawer,
+                        onSettingsClick = appShellController::navigateToSettings,
+                        onBackToChatClick = appShellController::navigateToChat,
+                        modifier = Modifier.align(Alignment.TopCenter),
+                    )
+                }
             }
         }
     }
@@ -261,6 +274,7 @@ private fun RootTopBar(
     onHistoryClick: () -> Unit,
     onSettingsClick: () -> Unit,
     onBackToChatClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val spacing = LocalChatUiSpacing
 
@@ -271,6 +285,7 @@ private fun RootTopBar(
     ) {
         Row(
             modifier = Modifier
+                .then(modifier)
                 .fillMaxWidth()
                 .statusBarsPadding()
                 .padding(horizontal = spacing.small, vertical = spacing.xSmall),
@@ -395,6 +410,7 @@ private fun ChatHomeSurface(
     val floatingComposerHeight = if (chatUiState.pendingAttachmentUris.isEmpty()) 78.dp else 144.dp
     val floatingComposerBottomPadding = spacing.medium
     val transcriptBottomPadding = floatingComposerHeight + floatingComposerBottomPadding + spacing.large
+    val composerScrimHeight = floatingComposerHeight + floatingComposerBottomPadding + 40.dp
     val pendingAssistantPlaceholderVisible = chatUiState.generationState == ChatGenerationState.Sending
     val transcriptBottomAnchorIndex by remember(chatUiState.messages.size, pendingAssistantPlaceholderVisible) {
         derivedStateOf {
@@ -500,6 +516,23 @@ private fun ChatHomeSurface(
                 }
             }
         }
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(composerScrimHeight)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            MaterialTheme.colorScheme.background.copy(alpha = 0.5f),
+                            MaterialTheme.colorScheme.background.copy(alpha = 0.88f),
+                            MaterialTheme.colorScheme.background,
+                        )
+                    )
+                )
+        )
 
         ComposerBar(
             chatUiState = chatUiState,

@@ -38,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.letr.chatui.R
@@ -217,13 +218,10 @@ private fun SettingsHeaderCard() {
         ) {
             Text(
                 text = stringResource(R.string.settings_title),
+                modifier = Modifier.fillMaxWidth(),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = stringResource(R.string.settings_description),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
             )
         }
     }
@@ -427,53 +425,48 @@ private fun MinimalSettingsField(
     val spacing = LocalChatUiSpacing
     val corners = LocalChatUiCorners
 
-    Surface(
-        shape = corners.large,
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.84f),
-        border = BorderStroke(
-            1.dp,
-            if (isError) {
-                MaterialTheme.colorScheme.error.copy(alpha = 0.22f)
-            } else {
-                MaterialTheme.colorScheme.outline.copy(alpha = 0.06f)
-            },
-        ),
+    Column(
+        verticalArrangement = Arrangement.spacedBy(spacing.xSmall),
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = spacing.medium, vertical = spacing.small),
-            verticalArrangement = Arrangement.spacedBy(spacing.xSmall),
-        ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurface,
+            fontWeight = FontWeight.Medium,
+        )
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            enabled = enabled,
+            isError = isError,
+            visualTransformation = visualTransformation,
+            keyboardOptions = keyboardOptions,
+            shape = corners.large,
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = Color.Transparent,
+                unfocusedContainerColor = Color.Transparent,
+                disabledContainerColor = Color.Transparent,
+                focusedBorderColor = if (isError) {
+                    MaterialTheme.colorScheme.error.copy(alpha = 0.22f)
+                } else {
+                    MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)
+                },
+                unfocusedBorderColor = if (isError) {
+                    MaterialTheme.colorScheme.error.copy(alpha = 0.18f)
+                } else {
+                    MaterialTheme.colorScheme.outline.copy(alpha = 0.08f)
+                },
+                disabledBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.06f),
+            ),
+        )
+        supportingText?.let { supporting ->
             Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.Medium,
+                text = supporting,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            OutlinedTextField(
-                value = value,
-                onValueChange = onValueChange,
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                enabled = enabled,
-                isError = isError,
-                visualTransformation = visualTransformation,
-                keyboardOptions = keyboardOptions,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent,
-                    disabledContainerColor = Color.Transparent,
-                    focusedBorderColor = Color.Transparent,
-                    unfocusedBorderColor = Color.Transparent,
-                    disabledBorderColor = Color.Transparent,
-                ),
-            )
-            supportingText?.let { supporting ->
-                Text(
-                    text = supporting,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
         }
     }
 }

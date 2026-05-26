@@ -42,6 +42,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
@@ -480,9 +481,7 @@ private fun ChatHomeSurface(
                                 message = message,
                                 isLatestAssistant = message.id == chatUiState.messages.lastOrNull { it.author == MessageAuthor.ASSISTANT }?.id,
                                 canRegenerate = chatUiState.canRegenerate,
-                                canStopGeneration = chatUiState.canStopGeneration,
                                 onRegenerateLatestResponse = onRegenerateLatestResponse,
-                                onStopGeneration = onStopGeneration,
                             )
                         }
 
@@ -506,6 +505,7 @@ private fun ChatHomeSurface(
             onSubmitPrompt = onSubmitPrompt,
             onAttachmentUrisSelected = onAttachmentUrisSelected,
             onPendingAttachmentRemoved = onPendingAttachmentRemoved,
+            onStopGeneration = onStopGeneration,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = floatingComposerBottomPadding),
@@ -650,9 +650,7 @@ private fun MessageBubble(
     message: Message,
     isLatestAssistant: Boolean,
     canRegenerate: Boolean,
-    canStopGeneration: Boolean,
     onRegenerateLatestResponse: () -> Unit,
-    onStopGeneration: () -> Unit,
 ) {
     val spacing = LocalChatUiSpacing
     val corners = LocalChatUiCorners
@@ -743,7 +741,13 @@ private fun MessageBubble(
         )
         Column(
             modifier = Modifier
-                .fillMaxWidth(0.9f)
+                .then(
+                    if (isUser) {
+                        Modifier.widthIn(max = 320.dp)
+                    } else {
+                        Modifier.fillMaxWidth(0.9f)
+                    }
+                )
                 .clip(if (isUser) corners.large else corners.medium)
                 .background(
                     when {
@@ -847,21 +851,6 @@ private fun MessageBubble(
                     }
                 }
 
-                if (isLatestAssistant && canStopGeneration) {
-                    IconButton(
-                        onClick = onStopGeneration,
-                        modifier = Modifier.size(32.dp),
-                        colors = IconButtonDefaults.iconButtonColors(
-                            contentColor = MaterialTheme.colorScheme.error,
-                        ),
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Close,
-                            contentDescription = stringResource(R.string.stop),
-                            modifier = Modifier.size(16.dp),
-                        )
-                    }
-                }
             }
         }
     }
@@ -1168,6 +1157,7 @@ private fun ComposerBar(
     onSubmitPrompt: () -> Unit,
     onAttachmentUrisSelected: (List<String>) -> Unit,
     onPendingAttachmentRemoved: (String) -> Unit,
+    onStopGeneration: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val spacing = LocalChatUiSpacing
@@ -1395,20 +1385,37 @@ private fun ComposerBar(
 
                     Spacer(modifier = Modifier.width(composerSideGap))
 
+                    val showStopButton = chatUiState.canStopGeneration
                     IconButton(
-                        onClick = onSubmitPrompt,
-                        enabled = chatUiState.sendEnabled,
+                        onClick = if (showStopButton) onStopGeneration else onSubmitPrompt,
+                        enabled = if (showStopButton) true else chatUiState.sendEnabled,
                         modifier = Modifier.size(composerControlHeight),
                         colors = IconButtonDefaults.iconButtonColors(
-                            containerColor = Color.Transparent,
-                            contentColor = MaterialTheme.colorScheme.onSurface,
+                            containerColor = if (showStopButton) {
+                                MaterialTheme.colorScheme.error.copy(alpha = 0.12f)
+                            } else {
+                                Color.Transparent
+                            },
+                            contentColor = if (showStopButton) {
+                                MaterialTheme.colorScheme.error
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            },
                             disabledContainerColor = Color.Transparent,
                             disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.42f),
                         ),
                     ) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.Send,
-                            contentDescription = stringResource(R.string.send_prompt),
+                            imageVector = if (showStopButton) {
+                                Icons.Rounded.Close
+                            } else {
+                                Icons.AutoMirrored.Rounded.Send
+                            },
+                            contentDescription = if (showStopButton) {
+                                stringResource(R.string.stop)
+                            } else {
+                                stringResource(R.string.send_prompt)
+                            },
                         )
                     }
                 }

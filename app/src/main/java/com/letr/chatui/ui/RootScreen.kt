@@ -37,11 +37,14 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
@@ -617,7 +620,12 @@ private fun ChatHomeSurface(
     var transcriptFollowMode by rememberSaveable(chatUiState.selectedConversationId?.value) {
         mutableStateOf(TranscriptFollowMode.FollowingLatest)
     }
-    val isImeVisible = androidx.compose.foundation.layout.WindowInsets.isImeVisible
+    val imeBottomPadding = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
+    val effectiveTranscriptBottomPadding = transcriptBottomPadding + if (transcriptFollowMode == TranscriptFollowMode.FollowingLatest) {
+        imeBottomPadding
+    } else {
+        0.dp
+    }
     val transcriptNestedScrollConnection = remember(listState, transcriptBottomAnchorIndex) {
         object : NestedScrollConnection {
             override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
@@ -669,7 +677,7 @@ private fun ChatHomeSurface(
         chatUiState.messages.lastOrNull()?.content?.length,
         chatUiState.generationState,
         transcriptFollowMode,
-        isImeVisible,
+        effectiveTranscriptBottomPadding,
     ) {
         if (chatUiState.messages.isNotEmpty() && transcriptFollowMode == TranscriptFollowMode.FollowingLatest) {
             listState.scrollToItem(transcriptBottomAnchorIndex)
@@ -696,14 +704,7 @@ private fun ChatHomeSurface(
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxWidth()
-                    .then(
-                        if (isImeVisible && transcriptFollowMode == TranscriptFollowMode.FollowingLatest) {
-                            Modifier.imePadding()
-                        } else {
-                            Modifier
-                        }
-                    ),
+                    .fillMaxWidth(),
             ) {
                 if (chatUiState.messages.isEmpty()) {
                     EmptyTranscriptState(
@@ -720,7 +721,7 @@ private fun ChatHomeSurface(
                         userScrollEnabled = transcriptCanScrollUnderTopChrome,
                         contentPadding = PaddingValues(
                             top = transcriptTopClearanceHeight,
-                            bottom = transcriptBottomPadding,
+                            bottom = effectiveTranscriptBottomPadding,
                         ),
                         verticalArrangement = Arrangement.spacedBy(spacing.small),
                     ) {

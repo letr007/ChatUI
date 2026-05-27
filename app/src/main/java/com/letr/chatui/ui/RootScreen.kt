@@ -576,6 +576,7 @@ private fun FloatingTopModelChip(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ChatHomeSurface(
     chatUiState: ChatUiState,
@@ -616,6 +617,7 @@ private fun ChatHomeSurface(
     var transcriptFollowMode by rememberSaveable(chatUiState.selectedConversationId?.value) {
         mutableStateOf(TranscriptFollowMode.FollowingLatest)
     }
+    val isImeVisible = androidx.compose.foundation.layout.WindowInsets.isImeVisible
     val transcriptNestedScrollConnection = remember(listState, transcriptBottomAnchorIndex) {
         object : NestedScrollConnection {
             override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
@@ -667,6 +669,7 @@ private fun ChatHomeSurface(
         chatUiState.messages.lastOrNull()?.content?.length,
         chatUiState.generationState,
         transcriptFollowMode,
+        isImeVisible,
     ) {
         if (chatUiState.messages.isNotEmpty() && transcriptFollowMode == TranscriptFollowMode.FollowingLatest) {
             listState.scrollToItem(transcriptBottomAnchorIndex)
@@ -693,7 +696,14 @@ private fun ChatHomeSurface(
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxWidth(),
+                    .fillMaxWidth()
+                    .then(
+                        if (isImeVisible && transcriptFollowMode == TranscriptFollowMode.FollowingLatest) {
+                            Modifier.imePadding()
+                        } else {
+                            Modifier
+                        }
+                    ),
             ) {
                 if (chatUiState.messages.isEmpty()) {
                     EmptyTranscriptState(

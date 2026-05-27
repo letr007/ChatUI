@@ -19,6 +19,7 @@ class AppShellController(
         private set
 
     fun openHistoryDrawer() {
+        currentDestination = AppDestination.CHAT
         isHistoryDrawerOpen = true
     }
 
@@ -28,6 +29,7 @@ class AppShellController(
 
     fun navigateToChat() {
         currentDestination = AppDestination.CHAT
+        closeHistoryDrawer()
     }
 
     fun navigateToSettings() {

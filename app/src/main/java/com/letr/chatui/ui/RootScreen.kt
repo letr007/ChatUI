@@ -3,6 +3,7 @@ package com.letr.chatui.ui
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Log
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -10,7 +11,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -30,6 +33,8 @@ import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -70,12 +75,9 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalNavigationDrawer
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -122,6 +124,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import com.letr.chatui.R
 import com.letr.chatui.app.AppDestination
@@ -156,6 +159,11 @@ private enum class TranscriptFollowMode {
     DetachedByUser,
 }
 
+private enum class RootOverlayDestination {
+    HISTORY,
+    SETTINGS,
+}
+
 @Composable
 @Preview
 fun RootScreen(
@@ -185,106 +193,179 @@ fun RootScreen(
     onSaveSettings: () -> Unit,
 ) {
     val spacing = LocalChatUiSpacing
-    val drawerState = rememberDrawerState(initialValue = androidx.compose.material3.DrawerValue.Closed)
+    val activeOverlay = when {
+        appShellController.isHistoryDrawerOpen -> RootOverlayDestination.HISTORY
+        appShellController.currentDestination == AppDestination.SETTINGS -> RootOverlayDestination.SETTINGS
+        else -> null
+    }
 
-    LaunchedEffect(appShellController.isHistoryDrawerOpen) {
-        if (appShellController.isHistoryDrawerOpen) {
-            drawerState.open()
-        } else {
-            drawerState.close()
+    BackHandler(enabled = activeOverlay != null) {
+        when (activeOverlay) {
+            RootOverlayDestination.HISTORY -> appShellController.closeHistoryDrawer()
+            RootOverlayDestination.SETTINGS -> appShellController.navigateToChat()
+            null -> Unit
         }
     }
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            HistoryDrawer(
-                conversations = conversations,
-                selectedConversationId = appShellController.selectedConversationId,
-                onConversationSelected = onConversationSelected,
-                onConversationRenamed = onConversationRenamed,
-                onConversationDeleted = onConversationDeleted,
-                onStartNewConversation = onStartNewConversation,
-                onClose = appShellController::closeHistoryDrawer,
-            )
-        },
-        gesturesEnabled = appShellController.currentDestination == AppDestination.CHAT,
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(horizontal = spacing.small),
     ) {
-        Scaffold(
-            topBar = {
-                if (appShellController.currentDestination == AppDestination.SETTINGS) {
-                    RootTopBar(
-                        destination = appShellController.currentDestination,
-                        currentModelId = chatUiState.currentModelId,
-                        configuredModelIds = settingsUiState.configuredModelIds,
-                        onHistoryClick = appShellController::openHistoryDrawer,
-                        onSettingsClick = appShellController::navigateToSettings,
-                        onModelSelected = onSwitchActiveModel,
-                        onBackToChatClick = appShellController::navigateToChat,
-                    )
-                }
-            },
-            containerColor = MaterialTheme.colorScheme.background,
-        ) { innerPadding ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .padding(
-                        horizontal = if (appShellController.currentDestination == AppDestination.CHAT) spacing.small else spacing.large,
-                        vertical = if (appShellController.currentDestination == AppDestination.CHAT) 0.dp else spacing.medium,
-                    ),
-            ) {
-                when (appShellController.currentDestination) {
-                    AppDestination.CHAT -> {
-                        ChatHomeSurface(
-                            chatUiState = chatUiState,
-                            onComposerTextChanged = onComposerTextChanged,
-                            onSubmitPrompt = onSubmitPrompt,
-                            onAttachmentUrisSelected = onAttachmentUrisSelected,
-                            onPendingAttachmentRemoved = onPendingAttachmentRemoved,
-                            onStopGeneration = onStopGeneration,
-                            onRegenerateLatestResponse = onRegenerateLatestResponse,
-                            onOpenHistory = appShellController::openHistoryDrawer,
-                            onOpenSettings = appShellController::navigateToSettings,
-                        )
-                    }
+        ChatHomeSurface(
+            chatUiState = chatUiState,
+            onComposerTextChanged = onComposerTextChanged,
+            onSubmitPrompt = onSubmitPrompt,
+            onAttachmentUrisSelected = onAttachmentUrisSelected,
+            onPendingAttachmentRemoved = onPendingAttachmentRemoved,
+            onStopGeneration = onStopGeneration,
+            onRegenerateLatestResponse = onRegenerateLatestResponse,
+            onOpenHistory = appShellController::openHistoryDrawer,
+            onOpenSettings = appShellController::navigateToSettings,
+        )
 
-                    AppDestination.SETTINGS -> {
-                        SettingsScreen(
-                            uiState = settingsUiState,
-                            onApiBaseUrlChanged = onSettingsApiBaseUrlChanged,
-                            onModelIdChanged = onSettingsModelIdChanged,
-                            onApiKeyInputChanged = onSettingsApiKeyChanged,
-                            onFetchModels = onFetchModels,
-                            onImportModelId = onImportModelId,
-                            onAddCurrentModelToConfiguredList = onAddCurrentModelToConfiguredList,
-                            onSelectConfiguredModel = onSelectConfiguredModel,
-                            onRemoveConfiguredModel = onRemoveConfiguredModel,
-                            onSave = onSaveSettings,
-                        )
-                    }
-                }
+        if (appShellController.currentDestination == AppDestination.CHAT) {
+            RootTopBar(
+                destination = appShellController.currentDestination,
+                currentModelId = chatUiState.currentModelId,
+                configuredModelIds = settingsUiState.configuredModelIds,
+                onHistoryClick = appShellController::openHistoryDrawer,
+                onSettingsClick = appShellController::navigateToSettings,
+                onModelSelected = onSwitchActiveModel,
+                onBackToChatClick = appShellController::navigateToChat,
+                modifier = Modifier.align(Alignment.TopCenter),
+            )
+        }
 
-                if (appShellController.currentDestination == AppDestination.CHAT) {
-                    RootTopBar(
-                        destination = appShellController.currentDestination,
-                        currentModelId = chatUiState.currentModelId,
-                        configuredModelIds = settingsUiState.configuredModelIds,
-                        onHistoryClick = appShellController::openHistoryDrawer,
-                        onSettingsClick = appShellController::navigateToSettings,
-                        onModelSelected = onSwitchActiveModel,
-                        onBackToChatClick = appShellController::navigateToChat,
-                        modifier = Modifier.align(Alignment.TopCenter),
-                    )
-                }
+        AnimatedVisibility(
+            visible = activeOverlay == RootOverlayDestination.HISTORY,
+            enter = slideInHorizontally(
+                initialOffsetX = { -it },
+                animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
+            ) + fadeIn(animationSpec = tween(durationMillis = 180)),
+            exit = slideOutHorizontally(
+                targetOffsetX = { -it },
+                animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
+            ) + fadeOut(animationSpec = tween(durationMillis = 140)),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            RootOverlayPanel {
+                HistoryDrawer(
+                    conversations = conversations,
+                    selectedConversationId = appShellController.selectedConversationId,
+                    onConversationSelected = onConversationSelected,
+                    onConversationRenamed = onConversationRenamed,
+                    onConversationDeleted = onConversationDeleted,
+                    onStartNewConversation = onStartNewConversation,
+                    onClose = appShellController::closeHistoryDrawer,
+                )
+            }
+        }
+
+        AnimatedVisibility(
+            visible = activeOverlay == RootOverlayDestination.SETTINGS,
+            enter = slideInHorizontally(
+                initialOffsetX = { it },
+                animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing),
+            ) + fadeIn(animationSpec = tween(durationMillis = 180)),
+            exit = slideOutHorizontally(
+                targetOffsetX = { it },
+                animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
+            ) + fadeOut(animationSpec = tween(durationMillis = 140)),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            RootOverlayPanel {
+                SettingsOverlayPanel(
+                    uiState = settingsUiState,
+                    onApiBaseUrlChanged = onSettingsApiBaseUrlChanged,
+                    onModelIdChanged = onSettingsModelIdChanged,
+                    onApiKeyInputChanged = onSettingsApiKeyChanged,
+                    onFetchModels = onFetchModels,
+                    onImportModelId = onImportModelId,
+                    onAddCurrentModelToConfiguredList = onAddCurrentModelToConfiguredList,
+                    onSelectConfiguredModel = onSelectConfiguredModel,
+                    onRemoveConfiguredModel = onRemoveConfiguredModel,
+                    onSave = onSaveSettings,
+                    onClose = appShellController::navigateToChat,
+                )
             }
         }
     }
+}
 
-    LaunchedEffect(drawerState.isClosed) {
-        if (drawerState.isClosed && appShellController.isHistoryDrawerOpen) {
-            appShellController.closeHistoryDrawer()
+@Composable
+private fun RootOverlayPanel(
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding(),
+            content = content,
+        )
+    }
+}
+
+@Composable
+private fun SettingsOverlayPanel(
+    uiState: SettingsUiState,
+    onApiBaseUrlChanged: (String) -> Unit,
+    onModelIdChanged: (String) -> Unit,
+    onApiKeyInputChanged: (String) -> Unit,
+    onFetchModels: () -> Unit,
+    onImportModelId: (String) -> Unit,
+    onAddCurrentModelToConfiguredList: () -> Unit,
+    onSelectConfiguredModel: (String) -> Unit,
+    onRemoveConfiguredModel: (String) -> Unit,
+    onSave: () -> Unit,
+    onClose: () -> Unit,
+) {
+    val spacing = LocalChatUiSpacing
+
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(spacing.small),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = spacing.medium, vertical = spacing.large),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.settings_nav_title),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+            TextButton(onClick = onClose) {
+                Text(text = stringResource(R.string.close))
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = spacing.large),
+        ) {
+            SettingsScreen(
+                uiState = uiState,
+                onApiBaseUrlChanged = onApiBaseUrlChanged,
+                onModelIdChanged = onModelIdChanged,
+                onApiKeyInputChanged = onApiKeyInputChanged,
+                onFetchModels = onFetchModels,
+                onImportModelId = onImportModelId,
+                onAddCurrentModelToConfiguredList = onAddCurrentModelToConfiguredList,
+                onSelectConfiguredModel = onSelectConfiguredModel,
+                onRemoveConfiguredModel = onRemoveConfiguredModel,
+                onSave = onSave,
+            )
         }
     }
 }
@@ -301,7 +382,6 @@ private fun RootTopBar(
     modifier: Modifier = Modifier,
 ) {
     val spacing = LocalChatUiSpacing
-    val isChatDestination = destination == AppDestination.CHAT
     var modelMenuExpanded by remember { mutableStateOf(false) }
 
     Surface(
@@ -314,7 +394,7 @@ private fun RootTopBar(
                 .then(modifier)
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .offset(y = if (isChatDestination) (-16).dp else 0.dp)
+                .offset(y = 0.dp)
                 .padding(horizontal = spacing.small, vertical = spacing.xSmall),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -332,36 +412,39 @@ private fun RootTopBar(
                             )
                         }
                         if (currentModelId.isNotBlank()) {
-                            FloatingTopModelChip(
-                                modelId = currentModelId,
-                                onClick = {
-                                    if (configuredModelIds.isNotEmpty()) {
-                                        modelMenuExpanded = true
+                            Box(contentAlignment = Alignment.CenterStart) {
+                                FloatingTopModelChip(
+                                    modelId = currentModelId,
+                                    onClick = {
+                                        if (configuredModelIds.isNotEmpty()) {
+                                            modelMenuExpanded = true
+                                        }
+                                    },
+                                )
+                                DropdownMenu(
+                                    expanded = modelMenuExpanded,
+                                    onDismissRequest = { modelMenuExpanded = false },
+                                    offset = DpOffset(x = 0.dp, y = 4.dp),
+                                    modifier = Modifier.background(MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)),
+                                ) {
+                                    configuredModelIds.forEach { modelId ->
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(
+                                                    text = modelId,
+                                                    color = if (modelId == currentModelId) {
+                                                        MaterialTheme.colorScheme.primary
+                                                    } else {
+                                                        MaterialTheme.colorScheme.onSurface
+                                                    },
+                                                )
+                                            },
+                                            onClick = {
+                                                modelMenuExpanded = false
+                                                onModelSelected(modelId)
+                                            },
+                                        )
                                     }
-                                },
-                            )
-                            DropdownMenu(
-                                expanded = modelMenuExpanded,
-                                onDismissRequest = { modelMenuExpanded = false },
-                                modifier = Modifier.background(MaterialTheme.colorScheme.surface.copy(alpha = 0.96f)),
-                            ) {
-                                configuredModelIds.forEach { modelId ->
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                text = modelId,
-                                                color = if (modelId == currentModelId) {
-                                                    MaterialTheme.colorScheme.primary
-                                                } else {
-                                                    MaterialTheme.colorScheme.onSurface
-                                                },
-                                            )
-                                        },
-                                        onClick = {
-                                            modelMenuExpanded = false
-                                            onModelSelected(modelId)
-                                        },
-                                    )
                                 }
                             }
                         }
@@ -484,7 +567,7 @@ private fun FloatingTopModelChip(
             text = modelId,
             modifier = Modifier
                 .widthIn(max = 180.dp)
-                .padding(horizontal = spacing.medium, vertical = spacing.small),
+                .padding(horizontal = spacing.medium, vertical = spacing.xSmall),
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
@@ -511,21 +594,22 @@ private fun ChatHomeSurface(
     val floatingComposerHeight = if (chatUiState.pendingAttachmentUris.isEmpty()) 78.dp else 144.dp
     val floatingComposerBottomPadding = spacing.medium
     val transcriptTopClearanceHeight = shellDimensions.topBarMinHeight + spacing.small
-    val transcriptBottomPadding = floatingComposerHeight + floatingComposerBottomPadding + spacing.large
-    val composerScrimHeight = floatingComposerHeight + floatingComposerBottomPadding + 40.dp
+    val transcriptTopMaskHeight = 24.dp
+    val transcriptBottomPadding = floatingComposerHeight + floatingComposerBottomPadding
+    val composerScrimHeight = 95.dp
+    val composerScrimFadeHeight = 40.dp
+    val composerScrimFadeFraction =
+        (composerScrimFadeHeight.value / composerScrimHeight.value).coerceIn(0f, 1f)
     val pendingAssistantPlaceholderVisible = chatUiState.generationState == ChatGenerationState.Sending
     var transcriptCanScrollUnderTopChrome by rememberSaveable(chatUiState.selectedConversationId?.value) {
         mutableStateOf(false)
     }
-    val transcriptTopClearanceVisible = chatUiState.messages.isNotEmpty() && !transcriptCanScrollUnderTopChrome
     val transcriptBottomAnchorIndex by remember(
         chatUiState.messages.size,
         pendingAssistantPlaceholderVisible,
-        transcriptTopClearanceVisible,
     ) {
         derivedStateOf {
-            (if (transcriptTopClearanceVisible) 1 else 0) +
-                chatUiState.messages.size +
+            chatUiState.messages.size +
                 if (pendingAssistantPlaceholderVisible) 1 else 0
         }
     }
@@ -621,18 +705,15 @@ private fun ChatHomeSurface(
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(bottom = transcriptBottomPadding)
                             .nestedScroll(transcriptNestedScrollConnection),
                         state = listState,
                         userScrollEnabled = transcriptCanScrollUnderTopChrome,
+                        contentPadding = PaddingValues(
+                            top = transcriptTopClearanceHeight,
+                            bottom = transcriptBottomPadding,
+                        ),
                         verticalArrangement = Arrangement.spacedBy(spacing.small),
                     ) {
-                        if (transcriptTopClearanceVisible) {
-                            item(key = "transcript-top-clearance") {
-                                Spacer(modifier = Modifier.height(transcriptTopClearanceHeight))
-                            }
-                        }
-
                         items(chatUiState.messages, key = { it.id.value }) { message ->
                             MessageBubble(
                                 message = message,
@@ -658,16 +739,26 @@ private fun ChatHomeSurface(
 
         Box(
             modifier = Modifier
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .height(transcriptTopMaskHeight)
+                .background(MaterialTheme.colorScheme.background)
+        )
+
+        Box(
+            modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
+                .padding(bottom = floatingComposerBottomPadding - 12.dp)
                 .height(composerScrimHeight)
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Transparent,
-                            MaterialTheme.colorScheme.background.copy(alpha = 0.5f),
-                            MaterialTheme.colorScheme.background.copy(alpha = 0.88f),
-                            MaterialTheme.colorScheme.background,
+                        colorStops = arrayOf(
+                            0f to Color.Transparent,
+                            (composerScrimFadeFraction * 0.45f) to MaterialTheme.colorScheme.background.copy(alpha = 0.22f),
+                            (composerScrimFadeFraction * 0.8f) to MaterialTheme.colorScheme.background.copy(alpha = 0.68f),
+                            composerScrimFadeFraction to MaterialTheme.colorScheme.background,
+                            1f to MaterialTheme.colorScheme.background,
                         )
                     )
                 )
@@ -1481,7 +1572,7 @@ private fun ComposerBar(
                         scaleY = composerCardScale
                     }
                     .clip(corners.large)
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.88f))
+                    .background(MaterialTheme.colorScheme.surface)
                     .border(
                         width = 1.dp,
                         color = MaterialTheme.colorScheme.outline.copy(alpha = 0.06f),

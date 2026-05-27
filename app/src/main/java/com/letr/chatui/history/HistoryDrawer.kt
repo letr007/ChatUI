@@ -7,13 +7,12 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -24,12 +23,12 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,7 +44,6 @@ import com.letr.chatui.R
 import com.letr.chatui.data.model.Conversation
 import com.letr.chatui.data.model.ConversationId
 import com.letr.chatui.ui.theme.LocalChatUiCorners
-import com.letr.chatui.ui.theme.LocalChatUiShellDimensions
 import com.letr.chatui.ui.theme.LocalChatUiSpacing
 
 @Composable
@@ -60,105 +58,107 @@ fun HistoryDrawer(
 ) {
     val corners = LocalChatUiCorners
     val spacing = LocalChatUiSpacing
-    val shellDimensions = LocalChatUiShellDimensions
     var renameTarget by remember { mutableStateOf<HistoryRenameTarget?>(null) }
     var deleteTarget by remember { mutableStateOf<Conversation?>(null) }
+    var pendingDeletedConversationId by remember { mutableStateOf<ConversationId?>(null) }
+    val visibleConversations = conversations.filterNot { it.id == pendingDeletedConversationId }
 
-    ModalDrawerSheet(
-        modifier = Modifier.width(shellDimensions.drawerWidth),
-        drawerContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+    LaunchedEffect(conversations, pendingDeletedConversationId) {
+        if (pendingDeletedConversationId != null && conversations.none { it.id == pendingDeletedConversationId }) {
+            pendingDeletedConversationId = null
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = spacing.medium, vertical = spacing.large),
+        verticalArrangement = Arrangement.spacedBy(spacing.medium),
     ) {
-        Column(
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.history_drawer_title),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+            TextButton(onClick = onClose) {
+                Text(text = stringResource(R.string.close))
+            }
+        }
+
+        Surface(
+            onClick = {
+                onStartNewConversation()
+                onClose()
+            },
             modifier = Modifier
-                .fillMaxHeight()
-                .padding(horizontal = spacing.medium, vertical = spacing.large),
-            verticalArrangement = Arrangement.spacedBy(spacing.medium),
+                .fillMaxWidth()
+                .heightIn(min = 64.dp),
+            shape = corners.large,
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.42f),
+            border = androidx.compose.foundation.BorderStroke(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.14f),
+            ),
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = stringResource(R.string.history_drawer_title),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                TextButton(onClick = onClose) {
-                    Text(text = stringResource(R.string.close))
-                }
-            }
-
-            Surface(
-                onClick = {
-                    onStartNewConversation()
-                    onClose()
-                },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 72.dp),
-                shape = corners.large,
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.42f),
-                border = androidx.compose.foundation.BorderStroke(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.14f),
-                ),
+                    .padding(horizontal = spacing.medium, vertical = spacing.small),
+                horizontalArrangement = Arrangement.spacedBy(spacing.medium),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = spacing.medium, vertical = spacing.medium),
-                    horizontalArrangement = Arrangement.spacedBy(spacing.medium),
-                    verticalAlignment = Alignment.CenterVertically,
+                Surface(
+                    modifier = Modifier.size(36.dp),
+                    shape = corners.medium,
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
+                    border = androidx.compose.foundation.BorderStroke(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f),
+                    ),
                 ) {
-                    Surface(
-                        modifier = Modifier.size(40.dp),
-                        shape = corners.medium,
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
-                        border = androidx.compose.foundation.BorderStroke(
-                            width = 1.dp,
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.12f),
-                        ),
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Rounded.Add,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurface,
-                            )
-                        }
-                    }
-
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(spacing.xSmall),
-                    ) {
-                        Text(
-                            text = stringResource(R.string.chat_header_new_conversation_title),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface,
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Rounded.Add,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurface,
                         )
                     }
                 }
-            }
 
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(spacing.xSmall)) {
-                items(conversations, key = { it.id.value }) { conversation ->
-                    val selected = conversation.id == selectedConversationId
-                    HistoryConversationRow(
-                        conversation = conversation,
-                        selected = selected,
-                        onSelect = { onConversationSelected(conversation.id) },
-                        onRename = {
-                            renameTarget = HistoryRenameTarget(
-                                conversationId = conversation.id,
-                                originalTitle = conversation.title,
-                            )
-                        },
-                        onDelete = { deleteTarget = conversation },
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(spacing.xSmall),
+                ) {
+                    Text(
+                        text = stringResource(R.string.chat_header_new_conversation_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
                     )
                 }
+            }
+        }
+
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(spacing.xSmall)) {
+            items(visibleConversations, key = { it.id.value }) { conversation ->
+                val selected = conversation.id == selectedConversationId
+                HistoryConversationRow(
+                    conversation = conversation,
+                    selected = selected,
+                    onSelect = { onConversationSelected(conversation.id) },
+                    onRename = {
+                        renameTarget = HistoryRenameTarget(
+                            conversationId = conversation.id,
+                            originalTitle = conversation.title,
+                        )
+                    },
+                    onDelete = { deleteTarget = conversation },
+                )
             }
         }
     }
@@ -180,6 +180,7 @@ fun HistoryDrawer(
             isSelectedConversation = conversation.id == selectedConversationId,
             onDismiss = { deleteTarget = null },
             onConfirm = {
+                pendingDeletedConversationId = conversation.id
                 onConversationDeleted(conversation.id)
                 deleteTarget = null
             },

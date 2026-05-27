@@ -50,9 +50,11 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
@@ -598,7 +600,6 @@ private fun ChatHomeSurface(
     val floatingComposerHeight = if (chatUiState.pendingAttachmentUris.isEmpty()) 78.dp else 144.dp
     val floatingComposerBottomPadding = spacing.medium
     val transcriptTopClearanceHeight = shellDimensions.topBarMinHeight + spacing.small
-    val transcriptTopMaskHeight = 24.dp
     val transcriptBottomPadding = floatingComposerHeight + floatingComposerBottomPadding
     val composerScrimHeight = 95.dp
     val composerScrimFadeHeight = 40.dp
@@ -752,7 +753,7 @@ private fun ChatHomeSurface(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
-                .height(transcriptTopMaskHeight)
+                .windowInsetsTopHeight(WindowInsets.statusBars)
                 .background(MaterialTheme.colorScheme.background)
         )
 

@@ -3,6 +3,7 @@ package com.letr.chatui.settings
 import com.letr.chatui.data.model.ChatSettings
 import com.letr.chatui.data.model.NonSensitiveChatSettings
 import com.letr.chatui.data.model.PersistedApiKeyState
+import com.letr.chatui.data.model.ThemeColorOption
 import java.net.URI
 import java.net.URISyntaxException
 
@@ -15,6 +16,7 @@ enum class SettingsStorageTarget {
     BASE_URL,
     MODEL,
     MODEL_LIST,
+    THEME_COLOR,
     API_KEY,
 }
 
@@ -65,6 +67,11 @@ object SettingsStorageContract {
             plaintextPreferenceStyleAllowed = true,
         ),
         SettingsStorageRule(
+            target = SettingsStorageTarget.THEME_COLOR,
+            backend = SettingsStorageBackend.DATA_STORE,
+            plaintextPreferenceStyleAllowed = true,
+        ),
+        SettingsStorageRule(
             target = SettingsStorageTarget.API_KEY,
             backend = SettingsStorageBackend.ENCRYPTED_LOCAL_STORAGE,
             plaintextPreferenceStyleAllowed = false,
@@ -111,6 +118,7 @@ object ChatSettingsSanitizer {
                 .filter { it.isNotEmpty() }
                 .distinct()
                 .sorted(),
+            themeColor = settings.themeColor,
         )
     }
 

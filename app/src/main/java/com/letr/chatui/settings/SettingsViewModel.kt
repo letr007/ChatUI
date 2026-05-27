@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.letr.chatui.data.model.ChatSettings
 import com.letr.chatui.data.model.NonSensitiveChatSettings
 import com.letr.chatui.data.model.PersistedApiKeyState
+import com.letr.chatui.data.model.ThemeColorOption
 import com.letr.chatui.data.repository.SecretSettingsRepository
 import com.letr.chatui.data.repository.SettingsRepository
 import com.letr.chatui.network.chatcompletions.OpenAiChatCompletionErrorMapper
@@ -31,6 +32,7 @@ data class SettingsUiState(
     val apiBaseUrl: String = "",
     val modelId: String = "",
     val configuredModelIds: List<String> = emptyList(),
+    val themeColor: ThemeColorOption = ThemeColorOption.DEFAULT,
     val apiKeyInput: String = "",
     val persistedApiKeyState: PersistedApiKeyState = PersistedApiKeyState.Missing,
     val validationIssues: List<SettingsValidationIssue> = emptyList(),
@@ -47,6 +49,7 @@ private data class SavedSettingsSnapshot(
     val apiBaseUrl: String,
     val modelId: String,
     val configuredModelIds: List<String>,
+    val themeColor: ThemeColorOption,
     val persistedApiKeyState: PersistedApiKeyState,
 )
 
@@ -63,6 +66,7 @@ class SettingsViewModel(
         apiBaseUrl = "",
         modelId = "",
         configuredModelIds = emptyList(),
+        themeColor = ThemeColorOption.DEFAULT,
         persistedApiKeyState = PersistedApiKeyState.Missing,
     )
 
@@ -80,6 +84,10 @@ class SettingsViewModel(
 
     fun onApiKeyInputChanged(value: String) {
         updateForm(apiKeyInput = value)
+    }
+
+    fun onThemeColorChanged(value: ThemeColorOption) {
+        updateForm(themeColor = value)
     }
 
     fun fetchModels() {
@@ -195,6 +203,7 @@ class SettingsViewModel(
                     apiBaseUrl = settings.apiBaseUrl,
                     modelId = modelId,
                     configuredModelIds = settings.configuredModelIds,
+                    themeColor = settings.themeColor,
                 )
             )
             refreshFromRepository()
@@ -235,6 +244,7 @@ class SettingsViewModel(
                                 apiBaseUrl = state.apiBaseUrl,
                                 modelId = state.modelId,
                                 configuredModelIds = state.configuredModelIds,
+                                themeColor = state.themeColor,
                             )
                         )
                     } catch (throwable: Throwable) {
@@ -247,6 +257,7 @@ class SettingsViewModel(
                             apiBaseUrl = state.apiBaseUrl,
                             modelId = state.modelId,
                             configuredModelIds = state.configuredModelIds,
+                            themeColor = state.themeColor,
                         )
                     )
                     if (normalizedApiKey != null) {
@@ -270,6 +281,7 @@ class SettingsViewModel(
                             apiBaseUrl = it.apiBaseUrl,
                             modelId = it.modelId,
                             configuredModelIds = it.configuredModelIds,
+                            themeColor = it.themeColor,
                             apiKeyInput = it.apiKeyInput,
                             persistedApiKeyState = it.persistedApiKeyState,
                         ),
@@ -277,6 +289,7 @@ class SettingsViewModel(
                             apiBaseUrl = it.apiBaseUrl,
                             modelId = it.modelId,
                             configuredModelIds = it.configuredModelIds,
+                            themeColor = it.themeColor,
                             apiKeyInput = it.apiKeyInput,
                             persistedApiKeyState = it.persistedApiKeyState,
                         ),
@@ -316,6 +329,7 @@ class SettingsViewModel(
                             apiBaseUrl = it.apiBaseUrl,
                             modelId = it.modelId,
                             configuredModelIds = it.configuredModelIds,
+                            themeColor = it.themeColor,
                             apiKeyInput = it.apiKeyInput,
                             persistedApiKeyState = it.persistedApiKeyState,
                         ),
@@ -323,6 +337,7 @@ class SettingsViewModel(
                             apiBaseUrl = it.apiBaseUrl,
                             modelId = it.modelId,
                             configuredModelIds = it.configuredModelIds,
+                            themeColor = it.themeColor,
                             apiKeyInput = it.apiKeyInput,
                             persistedApiKeyState = it.persistedApiKeyState,
                         ),
@@ -340,6 +355,7 @@ class SettingsViewModel(
     private fun updateForm(
         apiBaseUrl: String = uiState.value.apiBaseUrl,
         modelId: String = uiState.value.modelId,
+        themeColor: ThemeColorOption = uiState.value.themeColor,
         apiKeyInput: String = uiState.value.apiKeyInput,
     ) {
         val shouldClearImportedModels =
@@ -349,6 +365,7 @@ class SettingsViewModel(
                 apiBaseUrl = apiBaseUrl,
                 modelId = modelId,
                 configuredModelIds = it.configuredModelIds,
+                themeColor = themeColor,
                 apiKeyInput = apiKeyInput,
                 persistedApiKeyState = it.persistedApiKeyState,
                 isSaving = false,
@@ -366,12 +383,14 @@ class SettingsViewModel(
                 apiBaseUrl = settings.apiBaseUrl,
                 modelId = settings.modelId,
                 configuredModelIds = settings.configuredModelIds,
+                themeColor = settings.themeColor,
                 persistedApiKeyState = settings.apiKeyState,
             )
             _uiState.value = buildUiState(
                 apiBaseUrl = settings.apiBaseUrl,
                 modelId = settings.modelId,
                 configuredModelIds = settings.configuredModelIds,
+                themeColor = settings.themeColor,
                 apiKeyInput = "",
                 persistedApiKeyState = settings.apiKeyState,
                 isSaving = false,
@@ -384,6 +403,7 @@ class SettingsViewModel(
         apiBaseUrl: String,
         modelId: String,
         configuredModelIds: List<String>,
+        themeColor: ThemeColorOption,
         apiKeyInput: String,
         persistedApiKeyState: PersistedApiKeyState,
         isSaving: Boolean,
@@ -399,6 +419,7 @@ class SettingsViewModel(
             apiBaseUrl = apiBaseUrl,
             modelId = modelId,
             configuredModelIds = configuredModelIds,
+            themeColor = themeColor,
             apiKeyInput = apiKeyInput,
             persistedApiKeyState = persistedApiKeyState,
         )
@@ -406,6 +427,7 @@ class SettingsViewModel(
             apiBaseUrl = apiBaseUrl,
             modelId = modelId,
             configuredModelIds = configuredModelIds,
+            themeColor = themeColor,
             apiKeyInput = apiKeyInput,
             persistedApiKeyState = persistedApiKeyState,
             validationIssues = validationIssues,
@@ -438,12 +460,14 @@ class SettingsViewModel(
         apiBaseUrl: String,
         modelId: String,
         configuredModelIds: List<String>,
+        themeColor: ThemeColorOption,
         apiKeyInput: String,
         persistedApiKeyState: PersistedApiKeyState,
     ): Boolean {
         return apiBaseUrl != savedSnapshot.apiBaseUrl ||
             modelId != savedSnapshot.modelId ||
             configuredModelIds != savedSnapshot.configuredModelIds ||
+            themeColor != savedSnapshot.themeColor ||
             apiKeyInput.isNotBlank() ||
             persistedApiKeyState != savedSnapshot.persistedApiKeyState
     }

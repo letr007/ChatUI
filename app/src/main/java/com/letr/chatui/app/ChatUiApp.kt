@@ -22,6 +22,7 @@ import com.letr.chatui.settings.RealOpenAiModelsCatalogClient
 import com.letr.chatui.settings.SettingsViewModel
 import com.letr.chatui.settings.SettingsStorageFactory
 import com.letr.chatui.ui.RootScreen
+import com.letr.chatui.ui.theme.ChatUiTheme
 import okhttp3.OkHttpClient
 
 @Composable
@@ -79,6 +80,7 @@ fun ChatUiApp() {
         }
     )
     val appShellController = rememberAppShellController()
+    val themeSettings = settingsRepository.observeChatSettings().collectAsStateWithLifecycle(initialValue = com.letr.chatui.data.model.ChatSettings())
     val conversations = conversationRepository.observeConversations().collectAsStateWithLifecycle(initialValue = emptyList())
     val selectedConversationId = conversationRepository.observeSelectedConversationId().collectAsStateWithLifecycle(initialValue = null)
     val chatUiState = chatViewModel.uiState.collectAsStateWithLifecycle()
@@ -92,40 +94,43 @@ fun ChatUiApp() {
         conversationRepository.recoverPersistedLaunchState()
     }
 
-    Surface {
-        RootScreen(
-            appShellController = appShellController,
-            conversations = conversations.value,
-            chatUiState = chatUiState.value,
-            onConversationSelected = { conversationId ->
-                appShellController.selectConversation(conversationId)
-                chatViewModel.selectConversation(conversationId)
-            },
-            onConversationRenamed = chatViewModel::renameConversation,
-            onConversationDeleted = chatViewModel::deleteConversation,
-            onComposerTextChanged = chatViewModel::onComposerTextChanged,
-            onSubmitPrompt = chatViewModel::submitPrompt,
-            onAttachmentUrisSelected = chatViewModel::onAttachmentUrisSelected,
-            onPendingAttachmentRemoved = chatViewModel::removePendingAttachment,
-            onStartNewConversation = {
-                appShellController.syncSelectedConversation(null)
-                appShellController.navigateToChat()
-                chatViewModel.selectConversation(null)
-            },
-            onStopGeneration = chatViewModel::stopGeneration,
-            onRegenerateLatestResponse = chatViewModel::regenerateLatestResponse,
-            settingsUiState = settingsUiState.value,
-            onSettingsApiBaseUrlChanged = settingsViewModel::onApiBaseUrlChanged,
-            onSettingsModelIdChanged = settingsViewModel::onModelIdChanged,
-            onSettingsApiKeyChanged = settingsViewModel::onApiKeyInputChanged,
-            onFetchModels = settingsViewModel::fetchModels,
-            onImportModelId = settingsViewModel::importModelId,
-            onAddCurrentModelToConfiguredList = settingsViewModel::addCurrentModelToConfiguredList,
-            onSelectConfiguredModel = settingsViewModel::selectConfiguredModel,
-            onRemoveConfiguredModel = settingsViewModel::removeConfiguredModel,
-            onSwitchActiveModel = settingsViewModel::switchActiveModel,
-            onSaveSettings = settingsViewModel::saveSettings,
-        )
+    ChatUiTheme(themeColor = themeSettings.value.themeColor) {
+        Surface {
+            RootScreen(
+                appShellController = appShellController,
+                conversations = conversations.value,
+                chatUiState = chatUiState.value,
+                onConversationSelected = { conversationId ->
+                    appShellController.selectConversation(conversationId)
+                    chatViewModel.selectConversation(conversationId)
+                },
+                onConversationRenamed = chatViewModel::renameConversation,
+                onConversationDeleted = chatViewModel::deleteConversation,
+                onComposerTextChanged = chatViewModel::onComposerTextChanged,
+                onSubmitPrompt = chatViewModel::submitPrompt,
+                onAttachmentUrisSelected = chatViewModel::onAttachmentUrisSelected,
+                onPendingAttachmentRemoved = chatViewModel::removePendingAttachment,
+                onStartNewConversation = {
+                    appShellController.syncSelectedConversation(null)
+                    appShellController.navigateToChat()
+                    chatViewModel.selectConversation(null)
+                },
+                onStopGeneration = chatViewModel::stopGeneration,
+                onRegenerateLatestResponse = chatViewModel::regenerateLatestResponse,
+                settingsUiState = settingsUiState.value,
+                onSettingsApiBaseUrlChanged = settingsViewModel::onApiBaseUrlChanged,
+                onSettingsModelIdChanged = settingsViewModel::onModelIdChanged,
+                onSettingsThemeColorChanged = settingsViewModel::onThemeColorChanged,
+                onSettingsApiKeyChanged = settingsViewModel::onApiKeyInputChanged,
+                onFetchModels = settingsViewModel::fetchModels,
+                onImportModelId = settingsViewModel::importModelId,
+                onAddCurrentModelToConfiguredList = settingsViewModel::addCurrentModelToConfiguredList,
+                onSelectConfiguredModel = settingsViewModel::selectConfiguredModel,
+                onRemoveConfiguredModel = settingsViewModel::removeConfiguredModel,
+                onSwitchActiveModel = settingsViewModel::switchActiveModel,
+                onSaveSettings = settingsViewModel::saveSettings,
+            )
+        }
     }
 }
 

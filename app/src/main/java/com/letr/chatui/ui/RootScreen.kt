@@ -141,6 +141,7 @@ import com.letr.chatui.data.model.ConversationId
 import com.letr.chatui.data.model.Message
 import com.letr.chatui.data.model.MessageAuthor
 import com.letr.chatui.data.model.MessageStatus
+import com.letr.chatui.data.model.ThemeColorOption
 import com.letr.chatui.history.HistoryDrawer
 import com.letr.chatui.network.chatcompletions.toUiMessage
 import com.letr.chatui.settings.SettingsScreen
@@ -188,6 +189,7 @@ fun RootScreen(
     settingsUiState: SettingsUiState,
     onSettingsApiBaseUrlChanged: (String) -> Unit,
     onSettingsModelIdChanged: (String) -> Unit,
+    onSettingsThemeColorChanged: (ThemeColorOption) -> Unit,
     onSettingsApiKeyChanged: (String) -> Unit,
     onFetchModels: () -> Unit,
     onImportModelId: (String) -> Unit,
@@ -285,6 +287,7 @@ fun RootScreen(
                     uiState = settingsUiState,
                     onApiBaseUrlChanged = onSettingsApiBaseUrlChanged,
                     onModelIdChanged = onSettingsModelIdChanged,
+                    onThemeColorChanged = onSettingsThemeColorChanged,
                     onApiKeyInputChanged = onSettingsApiKeyChanged,
                     onFetchModels = onFetchModels,
                     onImportModelId = onImportModelId,
@@ -322,6 +325,7 @@ private fun SettingsOverlayPanel(
     uiState: SettingsUiState,
     onApiBaseUrlChanged: (String) -> Unit,
     onModelIdChanged: (String) -> Unit,
+    onThemeColorChanged: (ThemeColorOption) -> Unit,
     onApiKeyInputChanged: (String) -> Unit,
     onFetchModels: () -> Unit,
     onImportModelId: (String) -> Unit,
@@ -363,6 +367,7 @@ private fun SettingsOverlayPanel(
                 uiState = uiState,
                 onApiBaseUrlChanged = onApiBaseUrlChanged,
                 onModelIdChanged = onModelIdChanged,
+                onThemeColorChanged = onThemeColorChanged,
                 onApiKeyInputChanged = onApiKeyInputChanged,
                 onFetchModels = onFetchModels,
                 onImportModelId = onImportModelId,

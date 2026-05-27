@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -46,6 +47,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.letr.chatui.R
 import com.letr.chatui.data.model.PersistedApiKeyState
+import com.letr.chatui.data.model.ThemeColorOption
 import com.letr.chatui.ui.theme.LocalChatUiCorners
 import com.letr.chatui.ui.theme.LocalChatUiSpacing
 
@@ -55,6 +57,7 @@ fun SettingsScreen(
     uiState: SettingsUiState,
     onApiBaseUrlChanged: (String) -> Unit,
     onModelIdChanged: (String) -> Unit,
+    onThemeColorChanged: (ThemeColorOption) -> Unit,
     onApiKeyInputChanged: (String) -> Unit,
     onFetchModels: () -> Unit,
     onImportModelId: (String) -> Unit,
@@ -79,6 +82,24 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(spacing.medium),
         ) {
             SettingsFeedbackCard(uiState = uiState)
+
+            SettingsSectionCard(
+                title = stringResource(R.string.settings_theme_section_title),
+                subtitle = stringResource(R.string.settings_theme_section_subtitle),
+            ) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(spacing.small),
+                    verticalArrangement = Arrangement.spacedBy(spacing.small),
+                ) {
+                    ThemeColorOption.entries.forEach { themeColor ->
+                        SettingsThemeColorChip(
+                            themeColor = themeColor,
+                            selected = uiState.themeColor == themeColor,
+                            onClick = { onThemeColorChanged(themeColor) },
+                        )
+                    }
+                }
+            }
 
             SettingsSectionCard(
                 title = stringResource(R.string.settings_connection_section_title),
@@ -222,6 +243,56 @@ fun SettingsScreen(
             SettingsActionCard(
                 uiState = uiState,
                 onSave = onSave,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingsThemeColorChip(
+    themeColor: ThemeColorOption,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val spacing = LocalChatUiSpacing
+    val corners = LocalChatUiCorners
+
+    Surface(
+        modifier = Modifier.clickable(onClick = onClick),
+        shape = corners.medium,
+        color = if (selected) {
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.32f)
+        } else {
+            MaterialTheme.colorScheme.surface.copy(alpha = 0.78f)
+        },
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (selected) {
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.42f)
+            } else {
+                MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+            },
+        ),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = spacing.medium, vertical = spacing.small),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(spacing.small),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(14.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(themeColorSwatch(themeColor)),
+            )
+            Text(
+                text = themeColorLabel(themeColor),
+                style = MaterialTheme.typography.labelLarge,
+                color = if (selected) {
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
             )
         }
     }
@@ -557,6 +628,27 @@ private fun validationIssueLabel(issue: SettingsValidationIssue): String {
     }
 }
 
+@Composable
+private fun themeColorLabel(themeColor: ThemeColorOption): String {
+    return when (themeColor) {
+        ThemeColorOption.DEFAULT -> stringResource(R.string.settings_theme_color_default)
+        ThemeColorOption.BLUE -> stringResource(R.string.settings_theme_color_blue)
+        ThemeColorOption.GREEN -> stringResource(R.string.settings_theme_color_green)
+        ThemeColorOption.PURPLE -> stringResource(R.string.settings_theme_color_purple)
+        ThemeColorOption.AMBER -> stringResource(R.string.settings_theme_color_amber)
+    }
+}
+
+private fun themeColorSwatch(themeColor: ThemeColorOption): Color {
+    return when (themeColor) {
+        ThemeColorOption.DEFAULT -> Color(0xFF27403A)
+        ThemeColorOption.BLUE -> Color(0xFF2057A6)
+        ThemeColorOption.GREEN -> Color(0xFF256C44)
+        ThemeColorOption.PURPLE -> Color(0xFF6A46B9)
+        ThemeColorOption.AMBER -> Color(0xFF8A5200)
+    }
+}
+
 @Preview
 @Composable
 private fun SettingsScreenPreview() {
@@ -565,12 +657,14 @@ private fun SettingsScreenPreview() {
             apiBaseUrl = "https://api.openai.com/v1",
             modelId = "gpt-5.4",
             configuredModelIds = listOf("gpt-4.1", "gpt-5.4"),
+            themeColor = ThemeColorOption.BLUE,
             persistedApiKeyState = PersistedApiKeyState.Persisted(maskedValue = "••••1234"),
             availableModelIds = listOf("gpt-4o-mini", "gpt-4.1", "gpt-5.4"),
             canSave = true,
         ),
         onApiBaseUrlChanged = {},
         onModelIdChanged = {},
+        onThemeColorChanged = {},
         onApiKeyInputChanged = {},
         onFetchModels = {},
         onImportModelId = {},

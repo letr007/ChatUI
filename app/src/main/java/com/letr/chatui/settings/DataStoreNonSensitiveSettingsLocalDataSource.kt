@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.letr.chatui.data.model.NonSensitiveChatSettings
+import com.letr.chatui.data.model.ThemeColorOption
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.first
@@ -38,6 +39,7 @@ class DataStoreNonSensitiveSettingsLocalDataSource(
             preferences[API_BASE_URL_KEY] = normalized.apiBaseUrl
             preferences[MODEL_ID_KEY] = normalized.modelId
             preferences[MODEL_LIST_KEY] = normalized.configuredModelIds.toSet()
+            preferences[THEME_COLOR_KEY] = normalized.themeColor.name
         }
     }
 
@@ -46,6 +48,9 @@ class DataStoreNonSensitiveSettingsLocalDataSource(
             apiBaseUrl = preferences[API_BASE_URL_KEY].orEmpty(),
             modelId = preferences[MODEL_ID_KEY].orEmpty(),
             configuredModelIds = preferences[MODEL_LIST_KEY].orEmpty().toList().sorted(),
+            themeColor = preferences[THEME_COLOR_KEY]
+                ?.let { stored -> ThemeColorOption.entries.firstOrNull { it.name == stored } }
+                ?: ThemeColorOption.DEFAULT,
         )
     }
 
@@ -53,5 +58,6 @@ class DataStoreNonSensitiveSettingsLocalDataSource(
         val API_BASE_URL_KEY = stringPreferencesKey("chat_settings_api_base_url")
         val MODEL_ID_KEY = stringPreferencesKey("chat_settings_model_id")
         val MODEL_LIST_KEY = stringSetPreferencesKey("chat_settings_model_ids")
+        val THEME_COLOR_KEY = stringPreferencesKey("chat_settings_theme_color")
     }
 }

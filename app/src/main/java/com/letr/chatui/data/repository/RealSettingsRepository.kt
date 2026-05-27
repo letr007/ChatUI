@@ -34,6 +34,7 @@ class RealSettingsRepository(
                 modelId = settings.modelId,
                 configuredModelIds = settings.configuredModelIds,
                 apiKeyState = apiKeyState,
+                themeColor = settings.themeColor,
             )
         }
     }

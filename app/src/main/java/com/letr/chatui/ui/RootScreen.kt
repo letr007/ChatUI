@@ -98,6 +98,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -114,6 +115,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -405,7 +407,7 @@ private fun RootTopBar(
                 .fillMaxWidth()
                 .statusBarsPadding()
                 .offset(y = 0.dp)
-                .padding(horizontal = spacing.small, vertical = spacing.xSmall),
+                .padding(horizontal = spacing.small, vertical = spacing.small),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
@@ -505,7 +507,8 @@ private fun FloatingTopActionButton(
     content: @Composable () -> Unit,
 ) {
     val corners = LocalChatUiCorners
-    val buttonSize = 40.dp
+    val shellDimensions = LocalChatUiShellDimensions
+    val buttonSize = shellDimensions.touchTargetMin
     var hasSettled by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -536,11 +539,12 @@ private fun FloatingTopActionButton(
             translationY = settledTranslationY
         },
         shape = corners.large,
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
         border = androidx.compose.foundation.BorderStroke(
             width = 1.dp,
-            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.06f),
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f),
         ),
+        shadowElevation = 10.dp,
     ) {
         IconButton(
             onClick = onClick,
@@ -567,17 +571,19 @@ private fun FloatingTopModelChip(
             .clip(corners.large)
             .clickable(onClick = onClick),
         shape = corners.large,
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
         border = androidx.compose.foundation.BorderStroke(
             width = 1.dp,
-            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.06f),
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f),
         ),
+        shadowElevation = 10.dp,
     ) {
         Text(
             text = modelId,
             modifier = Modifier
                 .widthIn(max = 180.dp)
-                .padding(horizontal = spacing.medium, vertical = spacing.xSmall),
+                .heightIn(min = 44.dp)
+                .padding(horizontal = spacing.medium, vertical = spacing.small),
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
@@ -713,15 +719,23 @@ private fun ChatHomeSurface(
                     .fillMaxWidth(),
             ) {
                 if (chatUiState.messages.isEmpty()) {
-                    EmptyTranscriptState(
-                        chatUiState = chatUiState,
-                        onOpenSettings = onOpenSettings,
-                        onOpenHistory = onOpenHistory,
-                    )
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        EmptyTranscriptState(
+                            chatUiState = chatUiState,
+                            onOpenSettings = onOpenSettings,
+                            onOpenHistory = onOpenHistory,
+                            modifier = Modifier.widthIn(max = shellDimensions.transcriptMaxWidth),
+                        )
+                    }
                 } else {
                     LazyColumn(
                         modifier = Modifier
                             .fillMaxSize()
+                            .widthIn(max = shellDimensions.transcriptMaxWidth)
+                            .align(Alignment.TopCenter)
                             .nestedScroll(transcriptNestedScrollConnection),
                         state = listState,
                         userScrollEnabled = transcriptCanScrollUnderTopChrome,
@@ -833,6 +847,7 @@ private fun CompactStatusBanner(
         } else {
             MaterialTheme.colorScheme.surface.copy(alpha = 0.4f)
         },
+        shadowElevation = 4.dp,
     ) {
         Row(
             modifier = Modifier
@@ -878,12 +893,13 @@ private fun EmptyTranscriptState(
     chatUiState: ChatUiState,
     onOpenSettings: () -> Unit,
     onOpenHistory: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val spacing = LocalChatUiSpacing
     val hasConfigFailure = chatUiState.configFailure != null
 
     Box(
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier.fillMaxSize(),
         contentAlignment = Alignment.Center,
     ) {
         Column(
@@ -901,6 +917,17 @@ private fun EmptyTranscriptState(
                 },
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+            )
+
+            Text(
+                text = if (hasConfigFailure) {
+                    stringResource(R.string.empty_state_sending_blocked)
+                } else {
+                    stringResource(R.string.empty_state_transcript_message)
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
             )
 
@@ -1025,25 +1052,25 @@ private fun MessageBubble(
             modifier = Modifier
                 .then(
                     if (isUser) {
-                        Modifier.widthIn(max = 320.dp)
+                        Modifier.widthIn(max = 360.dp)
                     } else {
-                        Modifier.fillMaxWidth(0.9f)
+                        Modifier.fillMaxWidth(0.92f)
                     }
                 )
                 .clip(if (isUser) corners.large else corners.medium)
                 .background(
                     when {
-                        isUser -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.26f)
+                        isUser -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.58f)
                         message.status == MessageStatus.FAILED -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.32f)
-                        else -> Color.Transparent
+                        else -> MaterialTheme.colorScheme.surface.copy(alpha = 0.74f)
                     }
                 )
                 .border(
-                    width = if (isUser || message.status == MessageStatus.FAILED) 1.dp else 0.dp,
+                    width = 1.dp,
                     color = when {
-                        isUser -> MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+                        isUser -> MaterialTheme.colorScheme.outline.copy(alpha = 0.12f)
                         message.status == MessageStatus.FAILED -> MaterialTheme.colorScheme.outline.copy(alpha = 0.14f)
-                        else -> Color.Transparent
+                        else -> MaterialTheme.colorScheme.outline.copy(alpha = 0.05f)
                     },
                     shape = if (isUser) corners.large else corners.medium,
                 )
@@ -1104,7 +1131,7 @@ private fun MessageBubble(
                 if (message.content.isNotBlank()) {
                     IconButton(
                         onClick = { clipboardManager.setText(AnnotatedString(message.content)) },
-                        modifier = Modifier.size(32.dp),
+                        modifier = Modifier.size(44.dp),
                         colors = IconButtonDefaults.iconButtonColors(
                             contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         ),
@@ -1120,7 +1147,7 @@ private fun MessageBubble(
                 if (isLatestAssistant && canRegenerate) {
                     IconButton(
                         onClick = onRegenerateLatestResponse,
-                        modifier = Modifier.size(32.dp),
+                        modifier = Modifier.size(44.dp),
                         colors = IconButtonDefaults.iconButtonColors(
                             contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                         ),
@@ -1445,6 +1472,9 @@ private fun ComposerBar(
     val spacing = LocalChatUiSpacing
     val corners = LocalChatUiCorners
     val context = LocalContext.current
+    val composerInputDescription = stringResource(R.string.composer_input_description)
+    val composerStreamingTitle = stringResource(R.string.composer_streaming_title)
+    val composerDefaultTitle = stringResource(R.string.composer_default_title)
     val interactionSource = remember { MutableInteractionSource() }
     val focusManager = LocalFocusManager.current
     val isImeVisible = androidx.compose.foundation.layout.WindowInsets.isImeVisible
@@ -1544,7 +1574,8 @@ private fun ComposerBar(
         contentAlignment = Alignment.Center,
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth(composerWidthFraction),
+            modifier = Modifier
+                .fillMaxWidth(composerWidthFraction),
             verticalArrangement = Arrangement.spacedBy(spacing.small),
         ) {
             AnimatedVisibility(
@@ -1588,11 +1619,16 @@ private fun ComposerBar(
                         scaleX = composerCardScale
                         scaleY = composerCardScale
                     }
+                    .shadow(
+                        elevation = 16.dp,
+                        shape = corners.large,
+                        clip = false,
+                    )
                     .clip(corners.large)
-                    .background(MaterialTheme.colorScheme.surface)
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.98f))
                     .border(
                         width = 1.dp,
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.06f),
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f),
                         shape = corners.large,
                     )
                     .padding(vertical = composerVerticalPadding),
@@ -1622,13 +1658,17 @@ private fun ComposerBar(
                         enabled = !chatUiState.hasActiveGeneration,
                         modifier = Modifier.size(composerControlHeight),
                         colors = IconButtonDefaults.iconButtonColors(
-                            containerColor = Color.Transparent,
+                            containerColor = if (attachmentMenuExpanded) {
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.62f)
+                            } else {
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.18f)
+                            },
                             contentColor = if (attachmentMenuExpanded) {
                                 MaterialTheme.colorScheme.onPrimaryContainer
                             } else {
                                 MaterialTheme.colorScheme.onSurfaceVariant
                             },
-                            disabledContainerColor = Color.Transparent,
+                            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.12f),
                             disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.42f),
                         ),
                     ) {
@@ -1649,7 +1689,15 @@ private fun ComposerBar(
                         interactionSource = interactionSource,
                         modifier = Modifier
                             .weight(1f)
-                            .heightIn(min = composerControlHeight),
+                            .heightIn(min = composerControlHeight)
+                            .semantics {
+                                contentDescription = composerInputDescription
+                                stateDescription = if (chatUiState.hasActiveGeneration) {
+                                    composerStreamingTitle
+                                } else {
+                                    composerDefaultTitle
+                                }
+                            },
                         textStyle = MaterialTheme.typography.bodyLarge.copy(
                             color = if (chatUiState.hasActiveGeneration) {
                                 MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f)
@@ -1665,14 +1713,20 @@ private fun ComposerBar(
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 4.dp),
+                                    .padding(vertical = 8.dp),
                                 contentAlignment = Alignment.CenterStart,
                             ) {
-                                if (composerFieldValue.text.isEmpty() && chatUiState.configFailure != null) {
+                                if (composerFieldValue.text.isEmpty()) {
                                     Text(
-                                        text = stringResource(R.string.openai_failure_label_settings_required),
+                                        text = if (chatUiState.configFailure != null) {
+                                            stringResource(R.string.composer_placeholder_needs_settings)
+                                        } else {
+                                            stringResource(R.string.composer_placeholder_default)
+                                        },
                                         style = MaterialTheme.typography.bodyLarge,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.84f),
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
                                     )
                                 }
                                 innerTextField()
@@ -1691,15 +1745,19 @@ private fun ComposerBar(
                         colors = IconButtonDefaults.iconButtonColors(
                             containerColor = if (showStopButton) {
                                 MaterialTheme.colorScheme.error.copy(alpha = 0.12f)
+                            } else if (chatUiState.sendEnabled) {
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.76f)
                             } else {
-                                Color.Transparent
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.18f)
                             },
                             contentColor = if (showStopButton) {
                                 MaterialTheme.colorScheme.error
+                            } else if (chatUiState.sendEnabled) {
+                                MaterialTheme.colorScheme.onPrimaryContainer
                             } else {
-                                MaterialTheme.colorScheme.onSurface
+                                MaterialTheme.colorScheme.onSurfaceVariant
                             },
-                            disabledContainerColor = Color.Transparent,
+                            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.12f),
                             disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.42f),
                         ),
                     ) {

@@ -24,6 +24,7 @@ import com.letr.chatui.settings.SettingsStorageFactory
 import com.letr.chatui.ui.RootScreen
 import com.letr.chatui.ui.theme.ChatUiTheme
 import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
 
 @Composable
 fun ChatUiApp() {
@@ -46,7 +47,14 @@ fun ChatUiApp() {
             ),
         )
     }
-    val okHttpClient = remember { OkHttpClient() }
+    val okHttpClient = remember {
+        OkHttpClient.Builder()
+            .connectTimeout(20, TimeUnit.SECONDS)
+            .writeTimeout(2, TimeUnit.MINUTES)
+            .readTimeout(5, TimeUnit.MINUTES)
+            .callTimeout(0, TimeUnit.MILLISECONDS)
+            .build()
+    }
     val adapterFactory = remember(okHttpClient) {
         RealOpenAiChatCompletionProviderAdapterFactory(
             okHttpClient = okHttpClient,

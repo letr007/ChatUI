@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -18,10 +19,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -36,6 +39,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -72,7 +76,8 @@ fun HistoryDrawer(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = spacing.medium, vertical = spacing.large),
+            .padding(horizontal = spacing.medium, vertical = spacing.large)
+            .navigationBarsPadding(),
         verticalArrangement = Arrangement.spacedBy(spacing.medium),
     ) {
         Row(
@@ -99,10 +104,10 @@ fun HistoryDrawer(
                 .fillMaxWidth()
                 .heightIn(min = 64.dp),
             shape = corners.large,
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.42f),
+            color = MaterialTheme.colorScheme.surface,
             border = androidx.compose.foundation.BorderStroke(
                 width = 1.dp,
-                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.14f),
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.08f),
             ),
         ) {
             Row(
@@ -140,11 +145,19 @@ fun HistoryDrawer(
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface,
                     )
+                    Text(
+                        text = stringResource(R.string.history_drawer_new_chat_supporting),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }
 
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(spacing.xSmall)) {
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(spacing.xSmall),
+        ) {
             items(visibleConversations, key = { it.id.value }) { conversation ->
                 val selected = conversation.id == selectedConversationId
                 HistoryConversationRow(
@@ -199,13 +212,9 @@ private fun HistoryConversationRow(
 ) {
     val spacing = LocalChatUiSpacing
     var menuExpanded by remember { mutableStateOf(false) }
-    val contentColor = if (selected) {
-        MaterialTheme.colorScheme.onSurface
-    } else {
-        MaterialTheme.colorScheme.onSurface
-    }
+    val contentColor = MaterialTheme.colorScheme.onSurface
     Box(modifier = Modifier.fillMaxWidth()) {
-        Column(
+        Surface(
             modifier = Modifier
                 .fillMaxWidth()
                 .combinedClickable(
@@ -213,24 +222,57 @@ private fun HistoryConversationRow(
                     indication = null,
                     onClick = onSelect,
                     onLongClick = { menuExpanded = true },
-                )
-                .padding(horizontal = spacing.small, vertical = spacing.small),
-            verticalArrangement = Arrangement.spacedBy(spacing.xSmall),
+                ),
+            shape = LocalChatUiCorners.medium,
+            color = if (selected) {
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+            } else {
+                Color.Transparent
+            },
+            border = androidx.compose.foundation.BorderStroke(
+                1.dp,
+                if (selected) MaterialTheme.colorScheme.outline.copy(alpha = 0.06f)
+                else Color.Transparent,
+            ),
         ) {
-            Text(
-                text = conversation.title,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                color = contentColor,
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 52.dp)
+                    .padding(horizontal = spacing.medium, vertical = spacing.xSmall),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(spacing.small),
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(spacing.xSmall),
+                ) {
+                    Text(
+                        text = conversation.title,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        color = contentColor,
+                    )
+                }
+
+                IconButton(
+                    onClick = { menuExpanded = true },
+                    modifier = Modifier.size(44.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.MoreVert,
+                        contentDescription = stringResource(R.string.conversation_actions),
+                    )
+                }
+            }
         }
 
         DropdownMenu(
             expanded = menuExpanded,
             onDismissRequest = { menuExpanded = false },
-            modifier = Modifier.widthIn(min = 140.dp),
+            modifier = Modifier.widthIn(min = 180.dp),
         ) {
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.history_rename)) },
@@ -240,7 +282,12 @@ private fun HistoryConversationRow(
                 },
             )
             DropdownMenuItem(
-                text = { Text(stringResource(R.string.delete)) },
+                text = {
+                    Text(
+                        text = stringResource(R.string.delete),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                },
                 onClick = {
                     menuExpanded = false
                     onDelete()

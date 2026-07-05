@@ -97,9 +97,10 @@
     <string name="empty_state_setup_title">请先完成聊天设置</string>
     <string name="empty_state_transcript_title">对话将从这里开始</string>
     <string name="empty_state_sending_blocked">设置有效之前无法发送消息。</string>
-    <string name="empty_state_transcript_message">在下方输入提示词即可立即创建第一段会话。流式回复会持续更新同一个助手气泡，而不会叠加重复内容。</string>
+    <string name="empty_state_transcript_message">在下方输入即可开始。</string>
     <string name="open_settings">打开设置</string>
     <string name="browse_history">浏览历史记录</string>
+    <string name="conversation_actions">会话操作</string>
     <string name="speaker_you">你</string>
     <string name="copy_message">复制消息</string>
     <string name="thinking">思考中…</string>
@@ -115,9 +116,10 @@
     <string name="composer_failed_title">上一条回复失败——请修复设置或重试</string>
     <string name="composer_complete_title">可以开始下一轮了</string>
     <string name="composer_locked_message">打开历史记录即可回到正在生成的会话，然后停止它或等待完成。</string>
-    <string name="composer_default_message">发送后，你的提示词会立即出现在对话中，随后助手气泡会在原位持续更新流式文本。</string>
+    <string name="composer_default_message">发送后，回复会在当前对话中持续更新。</string>
     <string name="composer_placeholder_needs_settings">请先打开设置并配置聊天服务，随后回来发送第一条提示词。</string>
-    <string name="composer_placeholder_default">你可以让它起草内容、头脑风暴、协助调试，或输入任何想在会话中流式生成的内容。</string>
+    <string name="composer_placeholder_default">输入消息</string>
+    <string name="composer_input_description">提示词输入框</string>
     <string name="send_prompt">发送提示词</string>
     <string name="attach_image">添加图片</string>
     <string name="attachment_menu_camera">拍摄</string>
@@ -132,7 +134,6 @@
     <string name="assistant_status_failed">助手 • 失败</string>
     <string name="assistant_status_latest">助手 • 最新</string>
     <string name="assistant_status_default">助手</string>
-
     <string name="openai_failure_label_settings_required">需要设置</string>
     <string name="openai_failure_label_invalid_url">URL 无效</string>
     <string name="openai_failure_label_timeout">请求超时</string>

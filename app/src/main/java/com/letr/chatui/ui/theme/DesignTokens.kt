@@ -20,6 +20,10 @@ data class ChatUiShellDimensions(
     val topBarMinHeight: Dp = 72.dp,
     val drawerWidth: Dp = 320.dp,
     val sectionCardMinHeight: Dp = 160.dp,
+    val transcriptMaxWidth: Dp = 860.dp,
+    val composerMaxWidth: Dp = 820.dp,
+    val settingsMaxWidth: Dp = 760.dp,
+    val touchTargetMin: Dp = 44.dp,
 )
 
 @Immutable

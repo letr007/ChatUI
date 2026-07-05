@@ -49,6 +49,7 @@ import com.letr.chatui.R
 import com.letr.chatui.data.model.PersistedApiKeyState
 import com.letr.chatui.data.model.ThemeColorOption
 import com.letr.chatui.ui.theme.LocalChatUiCorners
+import com.letr.chatui.ui.theme.LocalChatUiShellDimensions
 import com.letr.chatui.ui.theme.LocalChatUiSpacing
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -67,6 +68,7 @@ fun SettingsScreen(
     onSave: () -> Unit,
 ) {
     val spacing = LocalChatUiSpacing
+    val shellDimensions = LocalChatUiShellDimensions
 
     Box(
         modifier = Modifier
@@ -78,7 +80,7 @@ fun SettingsScreen(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .widthIn(max = 760.dp),
+                .widthIn(max = shellDimensions.settingsMaxWidth),
             verticalArrangement = Arrangement.spacedBy(spacing.medium),
         ) {
             SettingsFeedbackCard(uiState = uiState)
@@ -261,21 +263,23 @@ private fun SettingsThemeColorChip(
         modifier = Modifier.clickable(onClick = onClick),
         shape = corners.medium,
         color = if (selected) {
-            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.32f)
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
         } else {
-            MaterialTheme.colorScheme.surface.copy(alpha = 0.78f)
+            MaterialTheme.colorScheme.surface
         },
         border = BorderStroke(
             width = 1.dp,
             color = if (selected) {
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.42f)
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.28f)
             } else {
-                MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+                MaterialTheme.colorScheme.outline.copy(alpha = 0.06f)
             },
         ),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = spacing.medium, vertical = spacing.small),
+            modifier = Modifier
+                .heightIn(min = 44.dp)
+                .padding(horizontal = spacing.medium, vertical = spacing.small),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(spacing.small),
         ) {
@@ -350,8 +354,8 @@ private fun SettingsSectionCard(
     val corners = LocalChatUiCorners
     Surface(
         shape = corners.large,
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.86f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.06f)),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.04f)),
     ) {
         Column(
             modifier = Modifier.padding(horizontal = spacing.large, vertical = spacing.medium),
@@ -361,7 +365,7 @@ private fun SettingsSectionCard(
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Medium,
                 )
                 Text(
                     text = subtitle,
@@ -383,8 +387,8 @@ private fun SettingsActionCard(
     val corners = LocalChatUiCorners
     Surface(
         shape = corners.large,
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.06f)),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.04f)),
     ) {
         Column(
             modifier = Modifier.padding(horizontal = spacing.large, vertical = spacing.medium),
@@ -400,7 +404,9 @@ private fun SettingsActionCard(
             Button(
                 onClick = onSave,
                 enabled = uiState.canSave,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 52.dp),
             ) {
                 if (uiState.isSaving) {
                     CircularProgressIndicator(
@@ -489,11 +495,12 @@ private fun SettingsImportModelChip(
             .clickable(onClick = onClick)
             .background(
                 if (imported) {
-                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.34f)
+                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
                 } else {
-                    MaterialTheme.colorScheme.surface.copy(alpha = 0.74f)
+                    MaterialTheme.colorScheme.surface
                 }
             )
+            .heightIn(min = 44.dp)
             .padding(horizontal = spacing.medium, vertical = spacing.small),
     ) {
         Text(
@@ -522,12 +529,13 @@ private fun SettingsConfiguredModelChip(
             .clip(corners.medium)
             .background(
                 if (selected) {
-                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.34f)
+                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
                 } else {
-                    MaterialTheme.colorScheme.surface.copy(alpha = 0.74f)
+                    MaterialTheme.colorScheme.surface
                 }
             )
             .clickable(onClick = onSelect)
+            .heightIn(min = 44.dp)
             .padding(start = spacing.medium, end = spacing.small, top = spacing.small, bottom = spacing.small),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(spacing.small),
@@ -582,7 +590,9 @@ private fun MinimalSettingsField(
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 56.dp),
             singleLine = true,
             enabled = enabled,
             isError = isError,

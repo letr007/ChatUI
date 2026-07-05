@@ -81,9 +81,10 @@ open class OpenAiChatCompletionRequestFactory(
 ) : OpenAiChatCompletionRequestFactoryContract {
     private companion object {
         const val TAG = "ChatUI-Images"
-        const val MAX_IMAGE_DIMENSION = 1280
-        const val TARGET_MAX_BYTES = 800 * 1024
-        const val MIN_JPEG_QUALITY = 55
+        const val MAX_IMAGE_ATTACHMENTS = 3
+        const val MAX_IMAGE_DIMENSION = 1024
+        const val TARGET_MAX_BYTES = 420 * 1024
+        const val MIN_JPEG_QUALITY = 48
     }
 
     override open fun create(
@@ -116,7 +117,10 @@ open class OpenAiChatCompletionRequestFactory(
             parts += OpenAiChatMessageContentPartDto.Text(text = message.content)
         }
         if (message.author == MessageAuthor.USER) {
-            message.attachedImageUris.forEach { uriString ->
+            if (message.attachedImageUris.size > MAX_IMAGE_ATTACHMENTS) {
+                logDebug(TAG, "skip extra images count=${message.attachedImageUris.size} limit=$MAX_IMAGE_ATTACHMENTS")
+            }
+            message.attachedImageUris.take(MAX_IMAGE_ATTACHMENTS).forEach { uriString ->
                 toDataUrl(uriString)?.let { dataUrl ->
                     parts += OpenAiChatMessageContentPartDto.ImageUrl(url = dataUrl)
                 }
@@ -130,8 +134,8 @@ open class OpenAiChatCompletionRequestFactory(
             val uri = Uri.parse(uriString)
             val compressedImage = compressImageForUpload(uri)
             val mimeType = compressedImage?.mimeType ?: contentResolver.getType(uri) ?: guessMimeType(uriString) ?: "image/jpeg"
-            val bytes = compressedImage?.bytes ?: contentResolver.openInputStream(uri)?.use { inputStream -> inputStream.readBytes() }
-            if (bytes == null || bytes.isEmpty()) return null
+            val bytes = compressedImage?.bytes ?: return null
+            if (bytes.isEmpty()) return null
             logDebug(TAG, "encoded image uri=$uriString bytes=${bytes.size} mime=$mimeType")
             val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
             logDebug(TAG, "base64 image uri=$uriString chars=${base64.length}")
